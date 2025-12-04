@@ -1,0 +1,7 @@
+project_id = "wxafugdkvvcymluycngf"
+
+[functions.fetch-fpl-data]
+verify_jwt = false
+
+[functions.generate-predictions]
+verify_jwt = false
