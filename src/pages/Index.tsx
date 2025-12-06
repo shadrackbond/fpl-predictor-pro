@@ -5,6 +5,7 @@ import { GameweekSelector } from '@/components/GameweekSelector';
 import { OptimalTeamView } from '@/components/OptimalTeamView';
 import { PredictionsTable } from '@/components/PredictionsTable';
 import { FixturesOverview } from '@/components/FixturesOverview';
+import { MyTeamSection } from '@/components/MyTeamSection';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useGameweeks,
@@ -21,7 +22,8 @@ import {
   Users, 
   Calendar,
   TrendingUp,
-  Zap
+  Zap,
+  UserCircle
 } from 'lucide-react';
 
 const Index = () => {
@@ -146,8 +148,12 @@ const Index = () => {
 
         {/* Tabs */}
         {hasData && selectedGameweekId && (
-          <Tabs defaultValue="team" className="space-y-6">
-            <TabsList className="bg-card border border-border p-1">
+          <Tabs defaultValue="myteam" className="space-y-6">
+            <TabsList className="bg-card border border-border p-1 flex-wrap h-auto gap-1">
+              <TabsTrigger value="myteam" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <UserCircle className="w-4 h-4" />
+                My Team
+              </TabsTrigger>
               <TabsTrigger value="team" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <Trophy className="w-4 h-4" />
                 Optimal Team
@@ -161,6 +167,10 @@ const Index = () => {
                 Fixtures
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="myteam" className="animate-fade-in">
+              <MyTeamSection gameweekId={selectedGameweekId} />
+            </TabsContent>
 
             <TabsContent value="team" className="animate-fade-in">
               <OptimalTeamView
