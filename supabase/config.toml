@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.generate-predictions]
 verify_jwt = false
+
+[functions.analyze-user-team]
+verify_jwt = false

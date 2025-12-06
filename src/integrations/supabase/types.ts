@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      chip_analysis: {
+        Row: {
+          analysis: string | null
+          chip_name: string
+          created_at: string
+          gameweek_id: number | null
+          id: number
+          recommendation: string | null
+          success_percentage: number | null
+          user_team_id: number | null
+        }
+        Insert: {
+          analysis?: string | null
+          chip_name: string
+          created_at?: string
+          gameweek_id?: number | null
+          id?: number
+          recommendation?: string | null
+          success_percentage?: number | null
+          user_team_id?: number | null
+        }
+        Update: {
+          analysis?: string | null
+          chip_name?: string
+          created_at?: string
+          gameweek_id?: number | null
+          id?: number
+          recommendation?: string | null
+          success_percentage?: number | null
+          user_team_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chip_analysis_user_team_id_fkey"
+            columns: ["user_team_id"]
+            isOneToOne: false
+            referencedRelation: "user_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fixtures: {
         Row: {
           away_score: number | null
@@ -340,6 +381,104 @@ export type Database = {
           strength_defence_home?: number | null
           strength_overall?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      transfer_suggestions: {
+        Row: {
+          created_at: string
+          gameweek_id: number | null
+          id: number
+          player_in_id: number | null
+          player_out_id: number | null
+          points_impact: number | null
+          priority: string | null
+          reason: string | null
+          user_team_id: number | null
+        }
+        Insert: {
+          created_at?: string
+          gameweek_id?: number | null
+          id?: number
+          player_in_id?: number | null
+          player_out_id?: number | null
+          points_impact?: number | null
+          priority?: string | null
+          reason?: string | null
+          user_team_id?: number | null
+        }
+        Update: {
+          created_at?: string
+          gameweek_id?: number | null
+          id?: number
+          player_in_id?: number | null
+          player_out_id?: number | null
+          points_impact?: number | null
+          priority?: string | null
+          reason?: string | null
+          user_team_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfer_suggestions_user_team_id_fkey"
+            columns: ["user_team_id"]
+            isOneToOne: false
+            referencedRelation: "user_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_teams: {
+        Row: {
+          active_chip: string | null
+          bank: number | null
+          captain_id: number | null
+          chips_available: Json | null
+          created_at: string
+          fpl_team_id: number
+          free_transfers: number | null
+          gameweek_points: number | null
+          id: number
+          overall_points: number | null
+          overall_rank: number | null
+          player_ids: number[]
+          team_name: string | null
+          updated_at: string
+          vice_captain_id: number | null
+        }
+        Insert: {
+          active_chip?: string | null
+          bank?: number | null
+          captain_id?: number | null
+          chips_available?: Json | null
+          created_at?: string
+          fpl_team_id: number
+          free_transfers?: number | null
+          gameweek_points?: number | null
+          id?: number
+          overall_points?: number | null
+          overall_rank?: number | null
+          player_ids?: number[]
+          team_name?: string | null
+          updated_at?: string
+          vice_captain_id?: number | null
+        }
+        Update: {
+          active_chip?: string | null
+          bank?: number | null
+          captain_id?: number | null
+          chips_available?: Json | null
+          created_at?: string
+          fpl_team_id?: number
+          free_transfers?: number | null
+          gameweek_points?: number | null
+          id?: number
+          overall_points?: number | null
+          overall_rank?: number | null
+          player_ids?: number[]
+          team_name?: string | null
+          updated_at?: string
+          vice_captain_id?: number | null
         }
         Relationships: []
       }
