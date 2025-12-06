@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useUserTeam, useAnalyzeUserTeam } from '@/hooks/useUserTeam';
+import { useUserTeam, useAnalyzeUserTeam, useDeleteUserTeam } from '@/hooks/useUserTeam';
 import { TransferSuggestions } from './TransferSuggestions';
 import { ChipAnalysis } from './ChipAnalysis';
 import { TeamComparison } from './TeamComparison';
@@ -27,6 +27,7 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
   const [fplId, setFplId] = useState('');
   const { data: userTeam, isLoading: loadingTeam } = useUserTeam();
   const analyzeTeam = useAnalyzeUserTeam();
+  const deleteTeam = useDeleteUserTeam();
 
   const handleImportTeam = () => {
     const teamId = parseInt(fplId.trim());
@@ -42,7 +43,13 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
     }
   };
 
-  const isAnalyzing = analyzeTeam.isPending;
+  const handleChangeTeam = () => {
+    if (userTeam?.id) {
+      deleteTeam.mutate(userTeam.id);
+    }
+  };
+
+  const isAnalyzing = analyzeTeam.isPending || deleteTeam.isPending;
 
   if (loadingTeam) {
     return (
@@ -159,6 +166,16 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
                   Refresh Analysis
                 </>
               )}
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleChangeTeam}
+              disabled={isAnalyzing}
+              className="gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeftRight className="w-4 h-4" />
+              Change Team
             </Button>
           </div>
         </CardContent>

@@ -43,3 +43,26 @@ export function useAnalyzeUserTeam() {
     },
   });
 }
+
+export function useDeleteUserTeam() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (teamId: number) => {
+      const { error } = await supabase
+        .from('user_teams')
+        .delete()
+        .eq('id', teamId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-team'] });
+      toast.success('Team removed. You can now import a new team.');
+    },
+    onError: (error) => {
+      console.error('Failed to remove team:', error);
+      toast.error('Failed to remove team');
+    },
+  });
+}
