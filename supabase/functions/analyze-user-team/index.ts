@@ -39,17 +39,30 @@ serve(async (req) => {
     const entryData = await entryResponse.json();
     console.log(`Team found: ${entryData.name}`);
 
-    // Get the current/next gameweek if not specified
+    // Get the next gameweek (for planning) or current if next not available
     let targetGwId = gameweek_id;
     if (!targetGwId) {
+      // First try to get the next gameweek (the one we're planning for)
       const { data: nextGw } = await supabase
         .from('gameweeks')
         .select('id, fpl_id')
         .eq('is_next', true)
         .maybeSingle();
       
-      targetGwId = nextGw?.id;
+      if (nextGw) {
+        targetGwId = nextGw.id;
+      } else {
+        // Fallback to current gameweek if next isn't set
+        const { data: currentGw } = await supabase
+          .from('gameweeks')
+          .select('id, fpl_id')
+          .eq('is_current', true)
+          .maybeSingle();
+        targetGwId = currentGw?.id;
+      }
     }
+    
+    console.log(`Using gameweek ID: ${targetGwId}`);
 
     // Get gameweek fpl_id for API calls
     const { data: gwData } = await supabase
@@ -107,13 +120,37 @@ serve(async (req) => {
     const captainFplId = picksData?.picks?.find((p: any) => p.is_captain)?.element;
     const viceCaptainFplId = picksData?.picks?.find((p: any) => p.is_vice_captain)?.element;
 
-    // Determine chips available
-    const chipsUsed = entryData.last_deadline_total_transfers || [];
-    const allChips = ['wildcard', 'freehit', 'bboost', 'triple_captain'];
-    const chipHistory = picksData?.chips || [];
-    const chipsAvailable = allChips.filter(chip => 
-      !chipHistory.some((used: any) => used.name === chip && used.event <= fplGwId)
+    // Fetch chip history from the history endpoint
+    const historyResponse = await fetch(
+      `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/history/`,
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      }
     );
+
+    let historyData: any = null;
+    if (historyResponse.ok) {
+      historyData = await historyResponse.json();
+    }
+
+    // Determine chips available from history
+    const allChips = ['wildcard', 'freehit', 'bboost', '3xc'];
+    const chipNameMap: Record<string, string> = {
+      'wildcard': 'wildcard',
+      'freehit': 'freehit', 
+      'bboost': 'bboost',
+      '3xc': 'triple_captain'
+    };
+    
+    // Get chips used from history endpoint
+    const chipsUsed = historyData?.chips || [];
+    console.log('Chips used from history:', JSON.stringify(chipsUsed));
+    
+    const chipsAvailable = allChips
+      .filter(chip => !chipsUsed.some((used: any) => used.name === chip))
+      .map(chip => chipNameMap[chip] || chip);
 
     // Save or update user team
     const userTeamData = {
@@ -456,18 +493,31 @@ function generateFallbackAnalysis(
     }
   }
 
-  // Generate suggested lineup - top 11 by predicted points respecting formation
+  // Generate suggested lineup - exactly 11 players respecting formation rules
   const suggestedLineup: number[] = [];
   const gks = sortedByPoints.filter(p => p.player?.position === 'GKP');
   const defs = sortedByPoints.filter(p => p.player?.position === 'DEF');
   const mids = sortedByPoints.filter(p => p.player?.position === 'MID');
   const fwds = sortedByPoints.filter(p => p.player?.position === 'FWD');
   
-  // 1 GK, 3-5 DEF, 2-5 MID, 1-3 FWD
+  // Must have exactly: 1 GK, at least 3 DEF, at least 2 MID, at least 1 FWD = 7 minimum
+  // Need to fill remaining 4 spots with best available from DEF/MID/FWD
   if (gks[0]) suggestedLineup.push(gks[0].player_id);
-  defs.slice(0, 4).forEach(p => suggestedLineup.push(p.player_id));
-  mids.slice(0, 4).forEach(p => suggestedLineup.push(p.player_id));
-  fwds.slice(0, 2).forEach(p => suggestedLineup.push(p.player_id));
+  
+  // Start with minimum: 3 DEF, 2 MID, 1 FWD
+  defs.slice(0, 3).forEach(p => suggestedLineup.push(p.player_id));
+  mids.slice(0, 2).forEach(p => suggestedLineup.push(p.player_id));
+  fwds.slice(0, 1).forEach(p => suggestedLineup.push(p.player_id));
+  
+  // Fill remaining 4 spots with best available outfield players not already selected
+  const remainingPlayers = [...defs.slice(3), ...mids.slice(2), ...fwds.slice(1)]
+    .filter(p => p.player_id && !suggestedLineup.includes(p.player_id))
+    .sort((a, b) => b.predicted_points - a.predicted_points);
+  
+  for (const p of remainingPlayers) {
+    if (suggestedLineup.length >= 11) break;
+    suggestedLineup.push(p.player_id);
+  }
 
   // Find best captain candidate
   const bestCandidate = sortedByPoints[0];
