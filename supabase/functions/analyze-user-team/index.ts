@@ -236,9 +236,14 @@ serve(async (req) => {
     const freeTransfers = picksData?.entry_history?.event_transfers || 1;
     const bank = (picksData?.entry_history?.bank || 0) / 10;
 
-    const aiPrompt = `You are an FPL expert. Analyze this user's team and suggest the best transfers.
+    // Find the best captain candidate (highest predicted points)
+    const bestCaptainCandidate = userPlayersData.reduce((best, player) => 
+      player.predicted_points > (best?.predicted_points || 0) ? player : best
+    , userPlayersData[0]);
 
-USER'S TEAM:
+    const aiPrompt = `You are an FPL expert. Analyze this user's team and suggest the best transfers and optimal lineup.
+
+USER'S TEAM (15 players):
 ${JSON.stringify(userPlayersData, null, 2)}
 
 TOP AVAILABLE PLAYERS:
@@ -247,14 +252,16 @@ ${JSON.stringify(topReplacements, null, 2)}
 FREE TRANSFERS: ${freeTransfers}
 BANK: £${bank.toFixed(1)}M
 CHIPS AVAILABLE: ${chipsAvailable.join(', ') || 'None'}
+BEST CAPTAIN CANDIDATE: ${bestCaptainCandidate?.name} (${bestCaptainCandidate?.predicted_points?.toFixed(1)} predicted points)
 
 Rules:
 1. Max 3 players from any single team
 2. Current team counts: ${JSON.stringify(teamCounts)}
 3. Consider fixture difficulty (1-5, lower is easier)
 4. Consider form and predicted points
+5. Starting XI must have: 1 GK, at least 3 DEF, at least 2 MID, at least 1 FWD (total 11 players)
 
-Provide transfer suggestions in this exact JSON format:
+Provide analysis in this exact JSON format:
 {
   "transfers": [
     {
@@ -267,12 +274,15 @@ Provide transfer suggestions in this exact JSON format:
       "reason": "<brief reason>"
     }
   ],
+  "suggested_lineup": [<array of 11 player IDs for starting XI, sorted by predicted points>],
   "chip_analysis": [
     {
       "chip_name": "<wildcard|freehit|bboost|triple_captain>",
       "success_percentage": <0-100>,
       "recommendation": "use" | "save",
-      "analysis": "<brief analysis>"
+      "analysis": "<brief analysis with specific timing advice>",
+      "best_candidate": "<player name if applicable, especially for triple_captain>",
+      "candidate_predicted_points": <number if applicable>
     }
   ],
   "team_comparison": {
@@ -282,11 +292,15 @@ Provide transfer suggestions in this exact JSON format:
   }
 }
 
-Consider:
+IMPORTANT Analysis Guidelines:
 - Only suggest transfers that improve the team significantly
 - Prioritize by points_impact (difference in predicted points)
 - Mark as "high" priority if impact > 3 points, "medium" if 1-3, "low" if < 1
-- For chips, analyze if current fixtures/form make them worth using`;
+- For Triple Captain: recommend the player with highest predicted points AND easy fixture. Include their name in best_candidate.
+- For Bench Boost: consider when ALL bench players have good fixtures
+- For Wildcard: recommend when team needs 4+ changes
+- For Free Hit: recommend during blank/double gameweeks
+- suggested_lineup should be the 11 players (by ID) who will score the most points this gameweek`;
 
     let aiResult: any = null;
     try {
@@ -374,13 +388,23 @@ Consider:
         .insert(chipAnalysisToInsert);
     }
 
+    // Get predictions for user's players to include in response
+    const playerPredictionsMap: Record<number, number> = {};
+    userPlayerPreds.forEach(pred => {
+      if (pred.player_id) {
+        playerPredictionsMap[pred.player_id] = pred.predicted_points;
+      }
+    });
+
     return new Response(JSON.stringify({
       success: true,
       team: savedTeam,
       transfers: aiResult?.transfers || [],
+      suggested_lineup: aiResult?.suggested_lineup || [],
       chip_analysis: aiResult?.chip_analysis || [],
       team_comparison: aiResult?.team_comparison || null,
       user_players: ourPlayers,
+      player_predictions: playerPredictionsMap,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -404,9 +428,9 @@ function generateFallbackAnalysis(
 ) {
   // Simple fallback: find lowest performing players and suggest replacements
   const sortedUserPlayers = [...userPlayerPreds].sort((a, b) => a.predicted_points - b.predicted_points);
+  const sortedByPoints = [...userPlayerPreds].sort((a, b) => b.predicted_points - a.predicted_points);
   
   const transfers: any[] = [];
-  const positions = ['GKP', 'DEF', 'MID', 'FWD'];
 
   for (let i = 0; i < Math.min(3, sortedUserPlayers.length); i++) {
     const playerOut = sortedUserPlayers[i];
@@ -432,26 +456,57 @@ function generateFallbackAnalysis(
     }
   }
 
-  // Basic chip analysis
-  const chipAnalysis = chipsAvailable.map(chip => ({
-    chip_name: chip,
-    success_percentage: chip === 'wildcard' ? 45 : chip === 'freehit' ? 40 : chip === 'bboost' ? 35 : 30,
-    recommendation: 'save',
-    analysis: `Consider saving ${chip} for a better opportunity unless fixtures are very favorable.`
-  }));
+  // Generate suggested lineup - top 11 by predicted points respecting formation
+  const suggestedLineup: number[] = [];
+  const gks = sortedByPoints.filter(p => p.player?.position === 'GKP');
+  const defs = sortedByPoints.filter(p => p.player?.position === 'DEF');
+  const mids = sortedByPoints.filter(p => p.player?.position === 'MID');
+  const fwds = sortedByPoints.filter(p => p.player?.position === 'FWD');
+  
+  // 1 GK, 3-5 DEF, 2-5 MID, 1-3 FWD
+  if (gks[0]) suggestedLineup.push(gks[0].player_id);
+  defs.slice(0, 4).forEach(p => suggestedLineup.push(p.player_id));
+  mids.slice(0, 4).forEach(p => suggestedLineup.push(p.player_id));
+  fwds.slice(0, 2).forEach(p => suggestedLineup.push(p.player_id));
+
+  // Find best captain candidate
+  const bestCandidate = sortedByPoints[0];
+
+  // Enhanced chip analysis with candidates
+  const chipAnalysis = chipsAvailable.map(chip => {
+    if (chip === 'triple_captain') {
+      return {
+        chip_name: chip,
+        success_percentage: bestCandidate && bestCandidate.predicted_points > 8 ? 65 : 30,
+        recommendation: bestCandidate && bestCandidate.predicted_points > 10 ? 'use' : 'save',
+        analysis: bestCandidate 
+          ? `${bestCandidate.player?.web_name} has ${bestCandidate.predicted_points.toFixed(1)} predicted points. ${bestCandidate.predicted_points > 10 ? 'Great week for TC!' : 'Consider waiting for a better opportunity.'}`
+          : 'Analyze fixture difficulty for best TC timing.',
+        best_candidate: bestCandidate?.player?.web_name,
+        candidate_predicted_points: bestCandidate?.predicted_points,
+      };
+    }
+    return {
+      chip_name: chip,
+      success_percentage: chip === 'wildcard' ? 45 : chip === 'freehit' ? 40 : 35,
+      recommendation: 'save',
+      analysis: `Consider saving ${chip} for a better opportunity. Look for blank/double gameweeks.`
+    };
+  });
 
   // Calculate team comparison
-  const currentPoints = userPlayerPreds.reduce((sum, p) => sum + p.predicted_points, 0);
+  const currentPoints = userPlayerPreds.reduce((sum, p) => sum + (p.predicted_points || 0), 0);
   const topPlayers = [...otherPlayerPreds].slice(0, 15);
-  const optimalPoints = topPlayers.reduce((sum, p) => sum + p.predicted_points, 0);
+  const optimalPoints = topPlayers.reduce((sum, p) => sum + (p.predicted_points || 0), 0);
 
   return {
     transfers,
+    suggested_lineup: suggestedLineup,
     chip_analysis: chipAnalysis,
     team_comparison: {
       current_predicted_points: Math.round(currentPoints * 10) / 10,
       optimal_potential_points: Math.round(optimalPoints * 10) / 10,
-      performance_diff: Math.round((currentPoints / optimalPoints) * 100)
+      performance_diff: optimalPoints > 0 ? Math.round((currentPoints / optimalPoints) * 100) : 0
     }
   };
 }

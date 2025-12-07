@@ -200,11 +200,13 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
         isLoading={isAnalyzing}
       />
 
-      {/* User Team Display */}
+      {/* User Team Display with Suggested Lineup */}
       <UserTeamDisplay 
         players={analyzeTeam.data?.user_players || []}
         captainId={userTeam.captain_id}
         viceCaptainId={userTeam.vice_captain_id}
+        suggestedLineup={analyzeTeam.data?.suggested_lineup || []}
+        predictions={new Map(Object.entries(analyzeTeam.data?.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
       />
     </div>
   );
