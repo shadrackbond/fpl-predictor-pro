@@ -32,14 +32,47 @@ export function UserTeamDisplay({
 }: UserTeamDisplayProps) {
   if (!players.length) return null;
 
-  // Determine starting XI and bench
-  const startingXI = suggestedLineup.length > 0 
-    ? players.filter(p => suggestedLineup.includes(p.id))
-    : players.slice(0, 11); // Default to first 11 if no lineup suggestion
+  // Determine starting XI (exactly 11) and bench (exactly 4)
+  let startingXI: Player[];
+  let bench: Player[];
   
-  const bench = suggestedLineup.length > 0
-    ? players.filter(p => !suggestedLineup.includes(p.id))
-    : players.slice(11);
+  if (suggestedLineup.length === 11) {
+    startingXI = players.filter(p => suggestedLineup.includes(p.id));
+    bench = players.filter(p => !suggestedLineup.includes(p.id));
+  } else {
+    // Fallback: sort by predicted points and pick best 11
+    const sorted = [...players].sort((a, b) => {
+      const ptsA = predictions.get(a.id) || 0;
+      const ptsB = predictions.get(b.id) || 0;
+      return ptsB - ptsA;
+    });
+    
+    // Ensure valid formation: 1 GK, 3+ DEF, 2+ MID, 1+ FWD
+    const gk = sorted.find(p => p.position === 'GKP');
+    const defs = sorted.filter(p => p.position === 'DEF');
+    const mids = sorted.filter(p => p.position === 'MID');
+    const fwds = sorted.filter(p => p.position === 'FWD');
+    
+    startingXI = [];
+    if (gk) startingXI.push(gk);
+    defs.slice(0, 3).forEach(p => startingXI.push(p));
+    mids.slice(0, 2).forEach(p => startingXI.push(p));
+    fwds.slice(0, 1).forEach(p => startingXI.push(p));
+    
+    // Fill remaining spots
+    const remaining = [...defs.slice(3), ...mids.slice(2), ...fwds.slice(1)]
+      .filter(p => !startingXI.includes(p))
+      .sort((a, b) => (predictions.get(b.id) || 0) - (predictions.get(a.id) || 0));
+    
+    while (startingXI.length < 11 && remaining.length > 0) {
+      startingXI.push(remaining.shift()!);
+    }
+    
+    bench = players.filter(p => !startingXI.includes(p));
+  }
+  
+  // Ensure bench has exactly 4 players
+  bench = bench.slice(0, 4);
 
   // Group starting XI by position
   const startingByPosition = {
