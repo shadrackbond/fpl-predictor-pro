@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,9 @@ import {
   Trophy,
   Coins,
   ArrowLeftRight,
-  Loader2
+  Loader2,
+  Sparkles,
+  Users
 } from 'lucide-react';
 
 interface MyTeamSectionProps {
@@ -25,9 +27,17 @@ interface MyTeamSectionProps {
 
 export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
   const [fplId, setFplId] = useState('');
+  const [showOptimized, setShowOptimized] = useState(false);
   const { data: userTeam, isLoading: loadingTeam } = useUserTeam();
   const analyzeTeam = useAnalyzeUserTeam();
   const deleteTeam = useDeleteUserTeam();
+
+  // Auto-refresh analysis when gameweek changes
+  useEffect(() => {
+    if (userTeam?.fpl_team_id && gameweekId) {
+      analyzeTeam.mutate({ fpl_team_id: userTeam.fpl_team_id, gameweek_id: gameweekId });
+    }
+  }, [gameweekId, userTeam?.fpl_team_id]);
 
   const handleImportTeam = () => {
     const teamId = parseInt(fplId.trim());
@@ -111,6 +121,9 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
   }
 
   // Team already imported - show analysis
+  const analysisData = analyzeTeam.data;
+  const hasAnalysis = !!analysisData;
+
   return (
     <div className="space-y-6">
       {/* Team Header */}
@@ -147,7 +160,7 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
             </div>
           </div>
 
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             <Button 
               variant="outline" 
               size="sm"
@@ -181,33 +194,76 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
         </CardContent>
       </Card>
 
-      {/* Team Comparison */}
-      {analyzeTeam.data?.team_comparison && (
-        <TeamComparison comparison={analyzeTeam.data.team_comparison} />
+      {/* Loading state */}
+      {isAnalyzing && !hasAnalysis && (
+        <div className="space-y-6">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
       )}
 
-      {/* Transfer Suggestions */}
-      <TransferSuggestions 
-        suggestions={analyzeTeam.data?.transfers || []} 
-        freeTransfers={userTeam.free_transfers || 1}
-        isLoading={isAnalyzing}
-      />
+      {/* Analysis results */}
+      {hasAnalysis && (
+        <>
+          {/* Team Comparison */}
+          {analysisData.team_comparison && (
+            <TeamComparison comparison={analysisData.team_comparison} />
+          )}
 
-      {/* Chip Analysis */}
-      <ChipAnalysis 
-        chips={analyzeTeam.data?.chip_analysis || []}
-        chipsAvailable={userTeam.chips_available as string[] || []}
-        isLoading={isAnalyzing}
-      />
+          {/* Transfer Suggestions */}
+          <TransferSuggestions 
+            suggestions={analysisData.transfers || []} 
+            freeTransfers={userTeam.free_transfers || 1}
+            isLoading={isAnalyzing}
+          />
 
-      {/* User Team Display with Suggested Lineup */}
-      <UserTeamDisplay 
-        players={analyzeTeam.data?.user_players || []}
-        captainId={userTeam.captain_id}
-        viceCaptainId={userTeam.vice_captain_id}
-        suggestedLineup={analyzeTeam.data?.suggested_lineup || []}
-        predictions={new Map(Object.entries(analyzeTeam.data?.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
-      />
+          {/* Chip Analysis */}
+          <ChipAnalysis 
+            chips={analysisData.chip_analysis || []}
+            chipsAvailable={userTeam.chips_available as string[] || []}
+            isLoading={isAnalyzing}
+          />
+
+          {/* Team Display Toggle */}
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Your Team</CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant={!showOptimized ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowOptimized(false)}
+                    className="gap-2"
+                  >
+                    <Users className="w-4 h-4" />
+                    Current
+                  </Button>
+                  <Button
+                    variant={showOptimized ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowOptimized(true)}
+                    className="gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Optimization
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+
+          {/* User Team Display */}
+          <UserTeamDisplay 
+            players={analysisData.user_players || []}
+            captainId={userTeam.captain_id}
+            viceCaptainId={userTeam.vice_captain_id}
+            suggestedLineup={showOptimized ? (analysisData.suggested_lineup || []) : undefined}
+            predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
+            showOptimized={showOptimized}
+          />
+        </>
+      )}
     </div>
   );
 }

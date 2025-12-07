@@ -21,14 +21,16 @@ interface UserTeamDisplayProps {
   viceCaptainId: number | null;
   suggestedLineup?: number[];
   predictions?: Map<number, number>;
+  showOptimized?: boolean;
 }
 
 export function UserTeamDisplay({ 
   players, 
   captainId, 
   viceCaptainId, 
-  suggestedLineup = [],
-  predictions = new Map()
+  suggestedLineup,
+  predictions = new Map(),
+  showOptimized = false
 }: UserTeamDisplayProps) {
   if (!players.length) return null;
 
@@ -36,14 +38,15 @@ export function UserTeamDisplay({
   let startingXI: Player[];
   let bench: Player[];
   
-  if (suggestedLineup.length === 11) {
+  if (showOptimized && suggestedLineup && suggestedLineup.length === 11) {
+    // Show optimized lineup from AI
     startingXI = players.filter(p => suggestedLineup.includes(p.id));
     bench = players.filter(p => !suggestedLineup.includes(p.id));
   } else {
-    // Fallback: sort by predicted points and pick best 11
+    // Show current lineup - use predicted points to build a valid formation
     const sorted = [...players].sort((a, b) => {
-      const ptsA = predictions.get(a.id) || 0;
-      const ptsB = predictions.get(b.id) || 0;
+      const ptsA = predictions.get(a.id) || a.total_points || 0;
+      const ptsB = predictions.get(b.id) || b.total_points || 0;
       return ptsB - ptsA;
     });
     
@@ -151,7 +154,7 @@ export function UserTeamDisplay({
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Users className="w-5 h-5 text-primary" />
-            Suggested Lineup
+            {showOptimized ? 'Optimized Lineup' : 'Current Lineup'}
           </CardTitle>
           {totalPredicted > 0 && (
             <Badge variant="secondary" className="text-sm gap-1">
