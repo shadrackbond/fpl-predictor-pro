@@ -8,7 +8,9 @@ import {
   Users2, 
   Star,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  TrendingUp,
+  AlertCircle
 } from 'lucide-react';
 
 interface ChipAnalysisItem {
@@ -16,6 +18,8 @@ interface ChipAnalysisItem {
   success_percentage: number;
   recommendation: string;
   analysis: string;
+  best_candidate?: string;
+  candidate_predicted_points?: number;
 }
 
 interface ChipAnalysisProps {
@@ -57,7 +61,7 @@ export function ChipAnalysis({ chips, chipsAvailable, isLoading }: ChipAnalysisP
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-32 w-full" />
+            <Skeleton key={i} className="h-40 w-full" />
           ))}
         </CardContent>
       </Card>
@@ -77,6 +81,11 @@ export function ChipAnalysis({ chips, chipsAvailable, isLoading }: ChipAnalysisP
     };
   });
 
+  // Find best chip to use this week
+  const bestChip = displayChips
+    .filter(c => c.isAvailable && c.analysis && c.analysis.recommendation === 'use')
+    .sort((a, b) => (b.analysis?.success_percentage || 0) - (a.analysis?.success_percentage || 0))[0];
+
   return (
     <Card className="bg-card border-border">
       <CardHeader>
@@ -85,15 +94,29 @@ export function ChipAnalysis({ chips, chipsAvailable, isLoading }: ChipAnalysisP
           Chip Analysis
         </CardTitle>
         <CardDescription>
-          Success probability and recommendations for each chip this gameweek
+          When to use your chips and best candidates for each
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {bestChip && (
+          <div className="mb-4 p-3 rounded-lg bg-primary/10 border border-primary/30">
+            <div className="flex items-center gap-2 text-primary">
+              <AlertCircle className="w-4 h-4" />
+              <span className="font-semibold text-sm">Recommended This Week</span>
+            </div>
+            <p className="text-sm mt-1">
+              Consider using <strong>{bestChip.label}</strong> - {bestChip.analysis?.success_percentage}% success rate
+            </p>
+          </div>
+        )}
+
         <div className="grid gap-4 md:grid-cols-2">
           {displayChips.map(chip => {
             const Icon = chip.icon;
             const successPct = chip.analysis?.success_percentage || 0;
             const recommendation = chip.analysis?.recommendation || 'save';
+            const bestCandidate = chip.analysis?.best_candidate;
+            const candidatePoints = chip.analysis?.candidate_predicted_points;
             
             return (
               <div 
@@ -130,17 +153,35 @@ export function ChipAnalysis({ chips, chipsAvailable, isLoading }: ChipAnalysisP
                       {recommendation === 'use' ? (
                         <Badge className="bg-green-500/20 text-green-400 border-green-500/30 gap-1">
                           <ThumbsUp className="w-3 h-3" />
-                          Recommended
+                          Use Now
                         </Badge>
                       ) : (
                         <Badge className="bg-muted text-muted-foreground gap-1">
                           <ThumbsDown className="w-3 h-3" />
-                          Save for later
+                          Save
                         </Badge>
                       )}
                     </div>
 
-                    <p className="text-xs text-muted-foreground">
+                    {/* Best candidate for triple captain */}
+                    {chip.name === 'triple_captain' && bestCandidate && (
+                      <div className="mt-2 p-2 rounded bg-background/50">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                          <TrendingUp className="w-3 h-3" />
+                          Best TC Candidate
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-sm">{bestCandidate}</span>
+                          {candidatePoints && (
+                            <Badge variant="secondary" className="text-xs">
+                              {candidatePoints.toFixed(1)} pts
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="text-xs text-muted-foreground mt-2">
                       {chip.analysis.analysis}
                     </p>
                   </>
