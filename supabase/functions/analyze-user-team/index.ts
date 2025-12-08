@@ -73,7 +73,11 @@ serve(async (req) => {
 
     const fplGwId = gwData?.fpl_id || 1;
 
-    // Fetch user's picks for the gameweek
+    // Fetch user's picks for the gameweek - try target gameweek first, then fallback to most recent
+    let picksData: any = null;
+    let actualPicksGw = fplGwId;
+    
+    // First try target gameweek
     const picksResponse = await fetch(
       `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/event/${fplGwId}/picks/`,
       {
@@ -83,10 +87,45 @@ serve(async (req) => {
       }
     );
 
-    let picksData: any = null;
     if (picksResponse.ok) {
       picksData = await picksResponse.json();
     }
+    
+    // If no picks for target gameweek, find the most recent gameweek with picks
+    if (!picksData?.picks?.length) {
+      console.log(`No picks found for GW ${fplGwId}, searching for most recent picks...`);
+      
+      // Get the current event from entry data to know the latest available gameweek
+      const currentEvent = entryData.current_event || fplGwId;
+      
+      // Try to fetch picks from the most recent completed gameweek
+      for (let gw = currentEvent; gw >= 1; gw--) {
+        const fallbackResponse = await fetch(
+          `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/event/${gw}/picks/`,
+          {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+          }
+        );
+        
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json();
+          if (fallbackData?.picks?.length) {
+            picksData = fallbackData;
+            actualPicksGw = gw;
+            console.log(`Found picks from GW ${gw}`);
+            break;
+          }
+        }
+      }
+    }
+    
+    if (!picksData?.picks?.length) {
+      throw new Error('Could not find any team picks. Please make sure you have set up your team on the FPL website.');
+    }
+    
+    console.log(`Using team picks from GW ${actualPicksGw}, analyzing for GW ${fplGwId}`);
 
     // Fetch user's transfer history
     const transfersResponse = await fetch(
