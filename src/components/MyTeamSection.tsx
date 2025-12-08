@@ -8,7 +8,7 @@ import { useUserTeam, useAnalyzeUserTeam, useDeleteUserTeam } from '@/hooks/useU
 import { TransferSuggestions } from './TransferSuggestions';
 import { ChipAnalysis } from './ChipAnalysis';
 import { TeamComparison } from './TeamComparison';
-import { UserTeamDisplay } from './UserTeamDisplay';
+import { TeamSimulator } from './TeamSimulator';
 import { 
   UserCircle, 
   Download, 
@@ -253,14 +253,15 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
             </CardHeader>
           </Card>
 
-          {/* User Team Display */}
-          <UserTeamDisplay 
+          {/* Team Simulator with Transfer/Sub capabilities */}
+          <TeamSimulator 
             players={analysisData.user_players || []}
             captainId={userTeam.captain_id}
             viceCaptainId={userTeam.vice_captain_id}
             suggestedLineup={showOptimized ? (analysisData.suggested_lineup || []) : undefined}
             predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
             showOptimized={showOptimized}
+            bank={userTeam.bank || 0}
           />
         </>
       )}
