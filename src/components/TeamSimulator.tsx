@@ -3,12 +3,30 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Users, Target, ArrowLeftRight, RotateCcw, Sparkles, UserPlus, 
-  RefreshCw, X, Check, AlertCircle
+  Users, Target, ArrowLeftRight, RotateCcw, Sparkles, 
+  X, Check, AlertCircle
 } from 'lucide-react';
 import { POSITION_COLORS, type Position } from '@/types/fpl';
 import { PlayerSearchModal } from './PlayerSearchModal';
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// Available formations: DEF-MID-FWD
+const FORMATIONS = [
+  { value: '4-4-2', def: 4, mid: 4, fwd: 2 },
+  { value: '4-3-3', def: 4, mid: 3, fwd: 3 },
+  { value: '3-4-3', def: 3, mid: 4, fwd: 3 },
+  { value: '3-5-2', def: 3, mid: 5, fwd: 2 },
+  { value: '4-5-1', def: 4, mid: 5, fwd: 1 },
+  { value: '5-3-2', def: 5, mid: 3, fwd: 2 },
+  { value: '5-2-3', def: 5, mid: 2, fwd: 3 },
+];
 
 interface Player {
   id: number;
@@ -55,11 +73,15 @@ export function TeamSimulator({
   const [simulatedStartingXI, setSimulatedStartingXI] = useState<number[]>([]);
   const [transfers, setTransfers] = useState<SimulatedTransfer[]>([]);
   const [simulatedBank, setSimulatedBank] = useState(originalBank);
+  const [selectedFormation, setSelectedFormation] = useState<string>('4-4-2');
   
   // Modal state
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedPlayerForTransfer, setSelectedPlayerForTransfer] = useState<Player | null>(null);
   const [isSimulationMode, setIsSimulationMode] = useState(false);
+  
+  // Substitution state - click-based
+  const [selectedForSub, setSelectedForSub] = useState<Player | null>(null);
 
   // Check if there are changes
   const hasChanges = useMemo(() => {
@@ -69,7 +91,12 @@ export function TeamSimulator({
            simulatedStartingXI.length > 0;
   }, [transfers, simulatedCaptainId, simulatedViceCaptainId, simulatedStartingXI, originalCaptainId, originalViceCaptainId]);
 
-  // Calculate starting XI and bench
+  // Get formation requirements
+  const formationReqs = useMemo(() => {
+    return FORMATIONS.find(f => f.value === selectedFormation) || FORMATIONS[0];
+  }, [selectedFormation]);
+
+  // Calculate starting XI and bench based on formation
   const { startingXI, bench } = useMemo(() => {
     const playersToUse = simulatedPlayers;
     let starting: Player[];
@@ -82,7 +109,7 @@ export function TeamSimulator({
       starting = playersToUse.filter(p => simulatedStartingXI.includes(p.id));
       benchPlayers = playersToUse.filter(p => !simulatedStartingXI.includes(p.id));
     } else {
-      // Default lineup logic
+      // Build lineup based on selected formation
       const sorted = [...playersToUse].sort((a, b) => {
         const ptsA = predictions.get(a.id) || a.total_points || 0;
         const ptsB = predictions.get(b.id) || b.total_points || 0;
@@ -96,23 +123,15 @@ export function TeamSimulator({
       
       starting = [];
       if (gk) starting.push(gk);
-      defs.slice(0, 3).forEach(p => starting.push(p));
-      mids.slice(0, 2).forEach(p => starting.push(p));
-      fwds.slice(0, 1).forEach(p => starting.push(p));
-      
-      const remaining = [...defs.slice(3), ...mids.slice(2), ...fwds.slice(1)]
-        .filter(p => !starting.includes(p))
-        .sort((a, b) => (predictions.get(b.id) || 0) - (predictions.get(a.id) || 0));
-      
-      while (starting.length < 11 && remaining.length > 0) {
-        starting.push(remaining.shift()!);
-      }
+      defs.slice(0, formationReqs.def).forEach(p => starting.push(p));
+      mids.slice(0, formationReqs.mid).forEach(p => starting.push(p));
+      fwds.slice(0, formationReqs.fwd).forEach(p => starting.push(p));
       
       benchPlayers = playersToUse.filter(p => !starting.includes(p));
     }
     
     return { startingXI: starting, bench: benchPlayers.slice(0, 4) };
-  }, [simulatedPlayers, simulatedStartingXI, showOptimized, suggestedLineup, predictions]);
+  }, [simulatedPlayers, simulatedStartingXI, showOptimized, suggestedLineup, predictions, formationReqs]);
 
   // Reset to original
   const handleReset = useCallback(() => {
@@ -122,44 +141,73 @@ export function TeamSimulator({
     setSimulatedStartingXI([]);
     setTransfers([]);
     setSimulatedBank(originalBank);
+    setSelectedFormation('4-4-2');
+    setSelectedForSub(null);
     setIsSimulationMode(false);
     onSimulationChange?.(false);
     toast.success('Simulation reset to original team');
   }, [originalPlayers, originalCaptainId, originalViceCaptainId, originalBank, onSimulationChange]);
 
-  // Handle substitution (swap between starting XI and bench)
-  const handleSubstitution = useCallback((player: Player) => {
-    const isInStarting = startingXI.some(p => p.id === player.id);
+  // Handle formation change
+  const handleFormationChange = useCallback((formation: string) => {
+    setSelectedFormation(formation);
+    setSimulatedStartingXI([]); // Reset starting XI to recalculate based on new formation
+    setSelectedForSub(null);
+    onSimulationChange?.(true);
+    toast.success(`Formation changed to ${formation}`);
+  }, [onSimulationChange]);
+
+  // Handle click-based substitution
+  const handlePlayerClick = useCallback((player: Player) => {
+    if (!isSimulationMode) return;
     
-    if (isInStarting) {
-      // Move to bench - find a bench player to swap with
-      const benchPlayerSamePos = bench.find(p => p.position === player.position);
-      if (benchPlayerSamePos) {
-        const newStarting = startingXI
-          .filter(p => p.id !== player.id)
-          .map(p => p.id);
-        newStarting.push(benchPlayerSamePos.id);
-        setSimulatedStartingXI(newStarting);
-        toast.success(`Subbed ${player.web_name} → ${benchPlayerSamePos.web_name}`);
-      } else {
-        toast.error('No valid bench player to swap with');
+    const isInStarting = startingXI.some(p => p.id === player.id);
+    const isInBench = bench.some(p => p.id === player.id);
+    
+    if (!selectedForSub) {
+      // First click - select player from starting XI
+      if (isInStarting) {
+        setSelectedForSub(player);
+        toast.info(`Selected ${player.web_name}. Now click a bench player to swap.`);
+      } else if (isInBench) {
+        setSelectedForSub(player);
+        toast.info(`Selected ${player.web_name}. Now click a starting player to swap.`);
       }
     } else {
-      // Move from bench to starting - find a starting player to swap with
-      const startingPlayerSamePos = startingXI.find(p => p.position === player.position);
-      if (startingPlayerSamePos) {
+      // Second click - complete substitution
+      const selectedIsStarting = startingXI.some(p => p.id === selectedForSub.id);
+      
+      if (selectedIsStarting && isInBench) {
+        // Swap starting player with bench player
         const newStarting = startingXI
-          .filter(p => p.id !== startingPlayerSamePos.id)
+          .filter(p => p.id !== selectedForSub.id)
           .map(p => p.id);
         newStarting.push(player.id);
         setSimulatedStartingXI(newStarting);
-        toast.success(`Subbed ${startingPlayerSamePos.web_name} → ${player.web_name}`);
+        toast.success(`Subbed ${selectedForSub.web_name} → ${player.web_name}`);
+        setSelectedForSub(null);
+        onSimulationChange?.(true);
+      } else if (!selectedIsStarting && isInStarting) {
+        // Swap bench player with starting player
+        const newStarting = startingXI
+          .filter(p => p.id !== player.id)
+          .map(p => p.id);
+        newStarting.push(selectedForSub.id);
+        setSimulatedStartingXI(newStarting);
+        toast.success(`Subbed ${player.web_name} → ${selectedForSub.web_name}`);
+        setSelectedForSub(null);
+        onSimulationChange?.(true);
       } else {
-        toast.error('No valid starting player to swap with');
+        // Same area clicked - reselect
+        setSelectedForSub(player);
+        if (isInStarting) {
+          toast.info(`Selected ${player.web_name}. Now click a bench player to swap.`);
+        } else {
+          toast.info(`Selected ${player.web_name}. Now click a starting player to swap.`);
+        }
       }
     }
-    onSimulationChange?.(true);
-  }, [startingXI, bench, onSimulationChange]);
+  }, [isSimulationMode, selectedForSub, startingXI, bench, onSimulationChange]);
 
   // Open transfer modal for a player
   const handleOpenTransfer = useCallback((player: Player) => {
@@ -302,7 +350,7 @@ export function TeamSimulator({
             </div>
             
             {/* Simulation Controls */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               {!isSimulationMode ? (
                 <Button
                   variant="outline"
@@ -315,10 +363,27 @@ export function TeamSimulator({
                 </Button>
               ) : (
                 <>
-                  <Badge variant="outline" className="py-1.5 px-3 gap-1 bg-primary/10 text-primary border-primary">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    Click players to modify
-                  </Badge>
+                  <Select value={selectedFormation} onValueChange={handleFormationChange}>
+                    <SelectTrigger className="w-[100px] h-8">
+                      <SelectValue placeholder="Formation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FORMATIONS.map(f => (
+                        <SelectItem key={f.value} value={f.value}>{f.value}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedForSub ? (
+                    <Badge variant="default" className="py-1.5 px-3 gap-1 bg-yellow-600 text-white">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Swapping: {selectedForSub.web_name}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="py-1.5 px-3 gap-1 bg-primary/10 text-primary border-primary">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Click player to swap
+                    </Badge>
+                  )}
                   <Badge variant="secondary" className="py-1.5 px-3 gap-1">
                     Bank: £{simulatedBank.toFixed(1)}M
                   </Badge>
@@ -326,6 +391,17 @@ export function TeamSimulator({
                     <Badge variant="secondary" className="py-1.5 px-3 gap-1">
                       {transfers.length} transfer{transfers.length > 1 ? 's' : ''}
                     </Badge>
+                  )}
+                  {selectedForSub && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedForSub(null)}
+                      className="gap-1 text-muted-foreground h-8"
+                    >
+                      <X className="w-3 h-3" />
+                      Cancel
+                    </Button>
                   )}
                   {hasChanges && (
                     <Button
@@ -368,7 +444,8 @@ export function TeamSimulator({
                         isViceCaptain={player.id === simulatedViceCaptainId}
                         isSimulationMode={isSimulationMode}
                         isStarting={true}
-                        onSubstitute={() => handleSubstitution(player)}
+                        isSelectedForSub={selectedForSub?.id === player.id}
+                        onClick={() => handlePlayerClick(player)}
                         onTransfer={() => handleOpenTransfer(player)}
                         onSetCaptain={() => handleSetCaptain(player)}
                         onSetViceCaptain={() => handleSetViceCaptain(player)}
@@ -394,7 +471,8 @@ export function TeamSimulator({
                       isViceCaptain={player.id === simulatedViceCaptainId}
                       isSimulationMode={isSimulationMode}
                       isStarting={false}
-                      onSubstitute={() => handleSubstitution(player)}
+                      isSelectedForSub={selectedForSub?.id === player.id}
+                      onClick={() => handlePlayerClick(player)}
                       onTransfer={() => handleOpenTransfer(player)}
                       onSetCaptain={() => handleSetCaptain(player)}
                       onSetViceCaptain={() => handleSetViceCaptain(player)}
@@ -471,7 +549,8 @@ interface PlayerCardProps {
   isViceCaptain: boolean;
   isSimulationMode: boolean;
   isStarting: boolean;
-  onSubstitute: () => void;
+  isSelectedForSub: boolean;
+  onClick: () => void;
   onTransfer: () => void;
   onSetCaptain: () => void;
   onSetViceCaptain: () => void;
@@ -485,7 +564,8 @@ function PlayerCard({
   isViceCaptain,
   isSimulationMode,
   isStarting,
-  onSubstitute,
+  isSelectedForSub,
+  onClick,
   onTransfer,
   onSetCaptain,
   onSetViceCaptain
@@ -494,7 +574,12 @@ function PlayerCard({
   
   return (
     <div 
-      className={`aspect-square p-3 rounded-lg border border-border bg-muted/30 transition-colors flex flex-col justify-between relative group ${!isStarting ? 'opacity-60' : ''} ${isSimulationMode ? 'hover:bg-muted/50 cursor-pointer hover:border-primary' : ''}`}
+      onClick={onClick}
+      className={`aspect-square p-3 rounded-lg border bg-muted/30 transition-all flex flex-col justify-between relative group 
+        ${!isStarting ? 'opacity-60' : ''} 
+        ${isSimulationMode ? 'cursor-pointer hover:bg-muted/50' : ''} 
+        ${isSelectedForSub ? 'border-yellow-500 border-2 bg-yellow-500/10 ring-2 ring-yellow-500/30' : 'border-border'}
+        ${isSimulationMode && !isSelectedForSub ? 'hover:border-primary' : ''}`}
     >
       <div className="flex items-center justify-between">
         <Badge 
@@ -531,22 +616,19 @@ function PlayerCard({
         </div>
       </div>
 
-      {/* Action overlay when in simulation mode */}
-      {isSimulationMode && (
+      {/* Action overlay when in simulation mode - only show for transfer/captain actions */}
+      {isSimulationMode && !isSelectedForSub && (
         <div className="absolute inset-0 bg-background/95 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex flex-col items-center justify-center gap-1.5 p-2">
-          <Button size="sm" variant="outline" className="w-full h-7 text-xs gap-1" onClick={onTransfer}>
+          <p className="text-[10px] text-muted-foreground mb-1">Click to swap</p>
+          <Button size="sm" variant="outline" className="w-full h-7 text-xs gap-1" onClick={(e) => { e.stopPropagation(); onTransfer(); }}>
             <ArrowLeftRight className="w-3 h-3" />
             Transfer
           </Button>
-          <Button size="sm" variant="outline" className="w-full h-7 text-xs gap-1" onClick={onSubstitute}>
-            <RefreshCw className="w-3 h-3" />
-            Sub
-          </Button>
           <div className="flex gap-1 w-full">
-            <Button size="sm" variant={isCaptain ? "default" : "outline"} className="flex-1 h-6 text-[10px] px-1" onClick={onSetCaptain}>
+            <Button size="sm" variant={isCaptain ? "default" : "outline"} className="flex-1 h-6 text-[10px] px-1" onClick={(e) => { e.stopPropagation(); onSetCaptain(); }}>
               C
             </Button>
-            <Button size="sm" variant={isViceCaptain ? "default" : "outline"} className="flex-1 h-6 text-[10px] px-1" onClick={onSetViceCaptain}>
+            <Button size="sm" variant={isViceCaptain ? "default" : "outline"} className="flex-1 h-6 text-[10px] px-1" onClick={(e) => { e.stopPropagation(); onSetViceCaptain(); }}>
               V
             </Button>
           </div>
