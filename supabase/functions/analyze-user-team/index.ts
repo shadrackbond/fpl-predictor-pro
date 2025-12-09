@@ -312,10 +312,23 @@ serve(async (req) => {
     const freeTransfers = picksData?.entry_history?.event_transfers || 1;
     const bank = (picksData?.entry_history?.bank || 0) / 10;
 
-    // Find the best captain candidate (highest predicted points)
+    // Find the best captain candidate in user's team (highest predicted points)
     const bestCaptainCandidate = userPlayersData.reduce((best, player) => 
       player.predicted_points > (best?.predicted_points || 0) ? player : best
     , userPlayersData[0]);
+
+    // Find the best overall captain candidate across ALL FPL players
+    const allPlayersForTC = predictions?.map(pred => ({
+      id: pred.player_id,
+      name: pred.player?.web_name,
+      team: pred.player?.teams?.short_name,
+      predicted_points: pred.predicted_points,
+      fixture_difficulty: teamDifficulty.get(pred.player?.team_id)?.difficulty || 3,
+    })) || [];
+    
+    const bestOverallTC = allPlayersForTC.reduce((best, player) => 
+      player.predicted_points > (best?.predicted_points || 0) ? player : best
+    , allPlayersForTC[0]);
 
     const aiPrompt = `You are an FPL expert. Analyze this user's team and suggest the best transfers and optimal lineup.
 
@@ -328,7 +341,8 @@ ${JSON.stringify(topReplacements, null, 2)}
 FREE TRANSFERS: ${freeTransfers}
 BANK: £${bank.toFixed(1)}M
 CHIPS AVAILABLE: ${chipsAvailable.join(', ') || 'None'}
-BEST CAPTAIN CANDIDATE: ${bestCaptainCandidate?.name} (${bestCaptainCandidate?.predicted_points?.toFixed(1)} predicted points)
+BEST CAPTAIN CANDIDATE IN MY TEAM: ${bestCaptainCandidate?.name} (${bestCaptainCandidate?.predicted_points?.toFixed(1)} predicted points)
+BEST CAPTAIN CANDIDATE IN ALL FPL: ${bestOverallTC?.name} from ${bestOverallTC?.team} (${bestOverallTC?.predicted_points?.toFixed(1)} predicted points)
 
 Rules:
 1. Max 3 players from any single team
@@ -357,8 +371,11 @@ Provide analysis in this exact JSON format:
       "success_percentage": <0-100>,
       "recommendation": "use" | "save",
       "analysis": "<brief analysis with specific timing advice>",
-      "best_candidate": "<player name if applicable, especially for triple_captain>",
-      "candidate_predicted_points": <number if applicable>
+      "best_candidate": "<player name from user's team if applicable>",
+      "candidate_predicted_points": <number if applicable>,
+      "best_overall_candidate": "<best player name in ALL of FPL for triple_captain>",
+      "best_overall_candidate_team": "<team short name>",
+      "best_overall_candidate_points": <predicted points>
     }
   ],
   "team_comparison": {
@@ -372,7 +389,7 @@ IMPORTANT Analysis Guidelines:
 - Only suggest transfers that improve the team significantly
 - Prioritize by points_impact (difference in predicted points)
 - Mark as "high" priority if impact > 3 points, "medium" if 1-3, "low" if < 1
-- For Triple Captain: recommend the player with highest predicted points AND easy fixture. Include their name in best_candidate.
+- For Triple Captain: Include BOTH best_candidate (from user's team) AND best_overall_candidate (from all FPL players). This helps users know if they should transfer in the best TC option.
 - For Bench Boost: consider when ALL bench players have good fixtures
 - For Wildcard: recommend when team needs 4+ changes
 - For Free Hit: recommend during blank/double gameweeks
@@ -558,8 +575,13 @@ function generateFallbackAnalysis(
     suggestedLineup.push(p.player_id);
   }
 
-  // Find best captain candidate
+  // Find best captain candidate in user's team
   const bestCandidate = sortedByPoints[0];
+  
+  // Find best overall captain candidate from ALL players
+  const bestOverallCandidate = otherPlayerPreds.reduce((best, pred) => 
+    pred.predicted_points > (best?.predicted_points || 0) ? pred : best
+  , otherPlayerPreds[0]);
 
   // Enhanced chip analysis with candidates
   const chipAnalysis = chipsAvailable.map(chip => {
@@ -573,6 +595,9 @@ function generateFallbackAnalysis(
           : 'Analyze fixture difficulty for best TC timing.',
         best_candidate: bestCandidate?.player?.web_name,
         candidate_predicted_points: bestCandidate?.predicted_points,
+        best_overall_candidate: bestOverallCandidate?.player?.web_name,
+        best_overall_candidate_team: bestOverallCandidate?.player?.teams?.short_name,
+        best_overall_candidate_points: bestOverallCandidate?.predicted_points,
       };
     }
     return {
