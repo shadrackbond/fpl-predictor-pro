@@ -20,6 +20,9 @@ interface ChipAnalysisItem {
   analysis: string;
   best_candidate?: string;
   candidate_predicted_points?: number;
+  best_overall_candidate?: string;
+  best_overall_candidate_team?: string;
+  best_overall_candidate_points?: number;
 }
 
 interface ChipAnalysisProps {
@@ -164,20 +167,50 @@ export function ChipAnalysis({ chips, chipsAvailable, isLoading }: ChipAnalysisP
                     </div>
 
                     {/* Best candidate for triple captain */}
-                    {chip.name === 'triple_captain' && bestCandidate && (
-                      <div className="mt-2 p-2 rounded bg-background/50">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                          <TrendingUp className="w-3 h-3" />
-                          Best TC Candidate
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-sm">{bestCandidate}</span>
-                          {candidatePoints && (
-                            <Badge variant="secondary" className="text-xs">
-                              {candidatePoints.toFixed(1)} pts
-                            </Badge>
-                          )}
-                        </div>
+                    {chip.name === 'triple_captain' && (
+                      <div className="mt-2 space-y-2">
+                        {/* Best in my team */}
+                        {bestCandidate && (
+                          <div className="p-2 rounded bg-background/50">
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                              <Star className="w-3 h-3" />
+                              Best TC in My Team
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-sm">{bestCandidate}</span>
+                              {candidatePoints && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {candidatePoints.toFixed(1)} pts
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Best overall in FPL */}
+                        {chip.analysis?.best_overall_candidate && (
+                          <div className="p-2 rounded bg-primary/10 border border-primary/20">
+                            <div className="flex items-center gap-1 text-xs text-primary mb-1">
+                              <TrendingUp className="w-3 h-3" />
+                              Best TC in All FPL
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="font-semibold text-sm">{chip.analysis.best_overall_candidate}</span>
+                                {chip.analysis.best_overall_candidate_team && (
+                                  <span className="text-xs text-muted-foreground ml-1">
+                                    ({chip.analysis.best_overall_candidate_team})
+                                  </span>
+                                )}
+                              </div>
+                              {chip.analysis.best_overall_candidate_points && (
+                                <Badge className="text-xs bg-primary/20 text-primary border-primary/30">
+                                  {chip.analysis.best_overall_candidate_points.toFixed(1)} pts
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 

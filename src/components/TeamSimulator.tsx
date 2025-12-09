@@ -105,7 +105,8 @@ export function TeamSimulator({
     if (showOptimized && suggestedLineup && suggestedLineup.length === 11) {
       starting = playersToUse.filter(p => suggestedLineup.includes(p.id));
       benchPlayers = playersToUse.filter(p => !suggestedLineup.includes(p.id));
-    } else if (simulatedStartingXI.length === 11) {
+    } else if (simulatedStartingXI.length > 0) {
+      // Use the manually set starting XI from substitutions
       starting = playersToUse.filter(p => simulatedStartingXI.includes(p.id));
       benchPlayers = playersToUse.filter(p => !simulatedStartingXI.includes(p.id));
     } else {
@@ -165,7 +166,7 @@ export function TeamSimulator({
     const isInBench = bench.some(p => p.id === player.id);
     
     if (!selectedForSub) {
-      // First click - select player from starting XI
+      // First click - select player from starting XI or bench
       if (isInStarting) {
         setSelectedForSub(player);
         toast.info(`Selected ${player.web_name}. Now click a bench player to swap.`);
@@ -178,23 +179,21 @@ export function TeamSimulator({
       const selectedIsStarting = startingXI.some(p => p.id === selectedForSub.id);
       
       if (selectedIsStarting && isInBench) {
-        // Swap starting player with bench player
-        const newStarting = startingXI
-          .filter(p => p.id !== selectedForSub.id)
-          .map(p => p.id);
+        // Swap starting player with bench player - preserve the full starting XI IDs
+        const currentStartingIds = startingXI.map(p => p.id);
+        const newStarting = currentStartingIds.filter(id => id !== selectedForSub.id);
         newStarting.push(player.id);
         setSimulatedStartingXI(newStarting);
-        toast.success(`Subbed ${selectedForSub.web_name} → ${player.web_name}`);
+        toast.success(`Substitution: ${selectedForSub.web_name} ↔ ${player.web_name}`);
         setSelectedForSub(null);
         onSimulationChange?.(true);
       } else if (!selectedIsStarting && isInStarting) {
-        // Swap bench player with starting player
-        const newStarting = startingXI
-          .filter(p => p.id !== player.id)
-          .map(p => p.id);
+        // Swap bench player with starting player - preserve the full starting XI IDs
+        const currentStartingIds = startingXI.map(p => p.id);
+        const newStarting = currentStartingIds.filter(id => id !== player.id);
         newStarting.push(selectedForSub.id);
         setSimulatedStartingXI(newStarting);
-        toast.success(`Subbed ${player.web_name} → ${selectedForSub.web_name}`);
+        toast.success(`Substitution: ${player.web_name} ↔ ${selectedForSub.web_name}`);
         setSelectedForSub(null);
         onSimulationChange?.(true);
       } else {
