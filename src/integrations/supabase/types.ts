@@ -166,6 +166,8 @@ export type Database = {
       }
       optimal_teams: {
         Row: {
+          accuracy_percentage: number | null
+          actual_points: number | null
           analysis: string | null
           captain_id: number | null
           created_at: string
@@ -176,9 +178,12 @@ export type Database = {
           starting_xi: number[]
           team_rating: number
           total_predicted_points: number
+          updated_at: string | null
           vice_captain_id: number | null
         }
         Insert: {
+          accuracy_percentage?: number | null
+          actual_points?: number | null
           analysis?: string | null
           captain_id?: number | null
           created_at?: string
@@ -189,9 +194,12 @@ export type Database = {
           starting_xi: number[]
           team_rating: number
           total_predicted_points: number
+          updated_at?: string | null
           vice_captain_id?: number | null
         }
         Update: {
+          accuracy_percentage?: number | null
+          actual_points?: number | null
           analysis?: string | null
           captain_id?: number | null
           created_at?: string
@@ -202,6 +210,7 @@ export type Database = {
           starting_xi?: number[]
           team_rating?: number
           total_predicted_points?: number
+          updated_at?: string | null
           vice_captain_id?: number | null
         }
         Relationships: [
@@ -216,6 +225,7 @@ export type Database = {
       }
       player_predictions: {
         Row: {
+          actual_points: number | null
           ai_analysis: string | null
           created_at: string
           fixture_difficulty: number | null
@@ -224,8 +234,10 @@ export type Database = {
           id: number
           player_id: number | null
           predicted_points: number
+          prediction_accuracy: number | null
         }
         Insert: {
+          actual_points?: number | null
           ai_analysis?: string | null
           created_at?: string
           fixture_difficulty?: number | null
@@ -234,8 +246,10 @@ export type Database = {
           id?: number
           player_id?: number | null
           predicted_points: number
+          prediction_accuracy?: number | null
         }
         Update: {
+          actual_points?: number | null
           ai_analysis?: string | null
           created_at?: string
           fixture_difficulty?: number | null
@@ -244,6 +258,7 @@ export type Database = {
           id?: number
           player_id?: number | null
           predicted_points?: number
+          prediction_accuracy?: number | null
         }
         Relationships: [
           {
@@ -338,6 +353,53 @@ export type Database = {
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prediction_history: {
+        Row: {
+          accuracy_percentage: number | null
+          avg_prediction_error: number | null
+          correct_predictions: number | null
+          created_at: string | null
+          gameweek_id: number | null
+          id: number
+          players_analyzed: number | null
+          total_actual_points: number | null
+          total_predicted_points: number
+          updated_at: string | null
+        }
+        Insert: {
+          accuracy_percentage?: number | null
+          avg_prediction_error?: number | null
+          correct_predictions?: number | null
+          created_at?: string | null
+          gameweek_id?: number | null
+          id?: number
+          players_analyzed?: number | null
+          total_actual_points?: number | null
+          total_predicted_points: number
+          updated_at?: string | null
+        }
+        Update: {
+          accuracy_percentage?: number | null
+          avg_prediction_error?: number | null
+          correct_predictions?: number | null
+          created_at?: string | null
+          gameweek_id?: number | null
+          id?: number
+          players_analyzed?: number | null
+          total_actual_points?: number | null
+          total_predicted_points?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prediction_history_gameweek_id_fkey"
+            columns: ["gameweek_id"]
+            isOneToOne: true
+            referencedRelation: "gameweeks"
             referencedColumns: ["id"]
           },
         ]
