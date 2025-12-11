@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.analyze-user-team]
 verify_jwt = false
+
+[functions.update-actual-results]
+verify_jwt = false
