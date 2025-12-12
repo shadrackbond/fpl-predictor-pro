@@ -8,6 +8,7 @@ import { PredictionsTable } from '@/components/PredictionsTable';
 import { FixturesOverview } from '@/components/FixturesOverview';
 import { MyTeamSection } from '@/components/MyTeamSection';
 import { AccuracyDashboard } from '@/components/AccuracyDashboard';
+import { ResultsSection } from '@/components/ResultsSection';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useGameweeks,
@@ -29,7 +30,8 @@ import {
   UserCircle,
   Target,
   ChevronRight,
-  Activity
+  Activity,
+  BarChart3
 } from 'lucide-react';
 
 const Index = () => {
@@ -241,6 +243,13 @@ const Index = () => {
                 Fixtures
               </TabsTrigger>
               <TabsTrigger 
+                value="results" 
+                className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <BarChart3 className="w-4 h-4" />
+                Results
+              </TabsTrigger>
+              <TabsTrigger 
                 value="accuracy" 
                 className="gap-2 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground transition-all"
               >
@@ -286,6 +295,13 @@ const Index = () => {
               <div className="max-w-3xl mx-auto">
                 <FixturesOverview fixtures={fixtures || []} />
               </div>
+            </TabsContent>
+
+            <TabsContent value="results" className="animate-fade-in">
+              <ResultsSection 
+                gameweeks={gameweeks || []} 
+                currentGameweekId={selectedGameweekId} 
+              />
             </TabsContent>
 
             <TabsContent value="accuracy" className="animate-fade-in">
