@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.update-actual-results]
 verify_jwt = false
+
+[functions.scrape-fpl-news]
+verify_jwt = false
+
+[functions.analyze-differentials]
+verify_jwt = false

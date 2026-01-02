@@ -1,13 +1,26 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect } from 'react';
 
 export function useUserTeam() {
-  const { user } = useAuth();
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  // Get current user session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserId(session?.user?.id ?? null);
+    });
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+    
+    return () => subscription.unsubscribe();
+  }, []);
   
   return useQuery({
-    queryKey: ['user-team', user?.id],
+    queryKey: ['user-team', userId],
     queryFn: async () => {
       const query = supabase
         .from('user_teams')
@@ -16,8 +29,8 @@ export function useUserTeam() {
         .limit(1);
       
       // If user is logged in, filter by their user_id
-      if (user) {
-        query.eq('user_id', user.id);
+      if (userId) {
+        query.eq('user_id', userId);
       }
       
       const { data, error } = await query.maybeSingle();
