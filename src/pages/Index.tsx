@@ -10,6 +10,8 @@ import { FixturesOverview } from '@/components/FixturesOverview';
 import { MyTeamSection } from '@/components/MyTeamSection';
 import { AccuracyDashboard } from '@/components/AccuracyDashboard';
 import { ResultsSection } from '@/components/ResultsSection';
+import { DifferentialsDashboard } from '@/components/DifferentialsDashboard';
+import { NewsFeed } from '@/components/NewsFeed';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useGameweeks,
@@ -32,7 +34,9 @@ import {
   Target,
   ChevronRight,
   Activity,
-  BarChart3
+  BarChart3,
+  Flame,
+  Newspaper
 } from 'lucide-react';
 
 const Index = () => {
@@ -261,6 +265,20 @@ const Index = () => {
                 Results
               </TabsTrigger>
               <TabsTrigger 
+                value="differentials" 
+                className="gap-2 data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all"
+              >
+                <Flame className="w-4 h-4" />
+                Differentials
+              </TabsTrigger>
+              <TabsTrigger 
+                value="news" 
+                className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <Newspaper className="w-4 h-4" />
+                News
+              </TabsTrigger>
+              <TabsTrigger 
                 value="accuracy" 
                 className="gap-2 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground transition-all"
               >
@@ -313,6 +331,14 @@ const Index = () => {
                 gameweeks={gameweeks || []} 
                 currentGameweekId={selectedGameweekId} 
               />
+            </TabsContent>
+
+            <TabsContent value="differentials" className="animate-fade-in">
+              <DifferentialsDashboard gameweekId={selectedGameweekId} />
+            </TabsContent>
+
+            <TabsContent value="news" className="animate-fade-in">
+              <NewsFeed />
             </TabsContent>
 
             <TabsContent value="accuracy" className="animate-fade-in">
