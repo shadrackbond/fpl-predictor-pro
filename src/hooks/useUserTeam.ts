@@ -5,20 +5,20 @@ import { useState, useEffect } from 'react';
 
 export function useUserTeam() {
   const [userId, setUserId] = useState<string | null>(null);
-  
+
   // Get current user session
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserId(session?.user?.id ?? null);
     });
-    
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUserId(session?.user?.id ?? null);
     });
-    
+
     return () => subscription.unsubscribe();
   }, []);
-  
+
   return useQuery({
     queryKey: ['user-team', userId],
     queryFn: async () => {
@@ -27,14 +27,14 @@ export function useUserTeam() {
         .select('*')
         .order('updated_at', { ascending: false })
         .limit(1);
-      
+
       // If user is logged in, filter by their user_id
       if (userId) {
         query.eq('user_id', userId);
       }
-      
+
       const { data, error } = await query.maybeSingle();
-      
+
       if (error) throw error;
       return data;
     },
@@ -43,20 +43,26 @@ export function useUserTeam() {
 
 export function useAnalyzeUserTeam() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ fpl_team_id, gameweek_id }: { fpl_team_id: number; gameweek_id: number | null }) => {
       const response = await supabase.functions.invoke('analyze-user-team', {
         body: { fpl_team_id, gameweek_id },
       });
-      
+
       if (response.error) throw response.error;
       if (response.data?.error) throw new Error(response.data.error);
-      
+
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-team'] });
+      // Invalidate the user-specific query so the imported team appears immediately.
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        queryClient.invalidateQueries({ queryKey: ['user-team', user?.id ?? null] });
+      }).catch(() => {
+        // Fallback to broad invalidation if we can't get the user id
+        queryClient.invalidateQueries({ queryKey: ['user-team'] });
+      });
       toast.success('Team analysis complete!');
     },
     onError: (error) => {
@@ -68,18 +74,23 @@ export function useAnalyzeUserTeam() {
 
 export function useDeleteUserTeam() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (teamId: number) => {
       const { error } = await supabase
         .from('user_teams')
         .delete()
         .eq('id', teamId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-team'] });
+      // Invalidate the specific user's team query so UI updates after deletion
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        queryClient.invalidateQueries({ queryKey: ['user-team', user?.id ?? null] });
+      }).catch(() => {
+        queryClient.invalidateQueries({ queryKey: ['user-team'] });
+      });
       toast.success('Team removed. You can now import a new team.');
     },
     onError: (error) => {
