@@ -1,17 +1,26 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function useUserTeam() {
+  const { user } = useAuth();
+  
   return useQuery({
-    queryKey: ['user-team'],
+    queryKey: ['user-team', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const query = supabase
         .from('user_teams')
         .select('*')
         .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
+      
+      // If user is logged in, filter by their user_id
+      if (user) {
+        query.eq('user_id', user.id);
+      }
+      
+      const { data, error } = await query.maybeSingle();
       
       if (error) throw error;
       return data;

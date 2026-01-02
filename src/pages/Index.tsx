@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
+import { UserMenu } from '@/components/UserMenu';
 import { GameweekSelector } from '@/components/GameweekSelector';
 import { OptimalTeamView } from '@/components/OptimalTeamView';
 import { PredictionsTable } from '@/components/PredictionsTable';
@@ -94,17 +95,22 @@ const Index = () => {
                 AI-Powered Predictions
               </div>
               
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-2xl gradient-primary shadow-glow">
-                  <Zap className="w-10 h-10 text-primary-foreground" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-2xl gradient-primary shadow-glow">
+                    <Zap className="w-10 h-10 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
+                      FPL <span className="text-gradient">Predictor</span>
+                    </h1>
+                    <p className="text-muted-foreground mt-1">
+                      Maximize your Fantasy Premier League points
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-                    FPL <span className="text-gradient">Predictor</span>
-                  </h1>
-                  <p className="text-muted-foreground mt-1">
-                    Maximize your Fantasy Premier League points
-                  </p>
+                <div className="lg:hidden">
+                  <UserMenu />
                 </div>
               </div>
 
@@ -133,8 +139,12 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Quick Stats */}
-            <div className="hidden lg:grid grid-cols-2 gap-3">
+            {/* Quick Stats & User Menu */}
+            <div className="hidden lg:flex flex-col gap-3">
+              <div className="flex justify-end">
+                <UserMenu />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
               <Card className="glass border-border/30 bg-card/40">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -165,6 +175,7 @@ const Index = () => {
                   </div>
                 </CardContent>
               </Card>
+              </div>
             </div>
           </div>
         </div>

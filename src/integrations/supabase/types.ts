@@ -55,6 +55,60 @@ export type Database = {
           },
         ]
       }
+      differential_alerts: {
+        Row: {
+          alert_type: string
+          confidence: number | null
+          created_at: string
+          gameweek_id: number | null
+          id: number
+          is_active: boolean | null
+          ownership_percent: number | null
+          player_id: number | null
+          predicted_points: number | null
+          reason: string | null
+        }
+        Insert: {
+          alert_type: string
+          confidence?: number | null
+          created_at?: string
+          gameweek_id?: number | null
+          id?: number
+          is_active?: boolean | null
+          ownership_percent?: number | null
+          player_id?: number | null
+          predicted_points?: number | null
+          reason?: string | null
+        }
+        Update: {
+          alert_type?: string
+          confidence?: number | null
+          created_at?: string
+          gameweek_id?: number | null
+          id?: number
+          is_active?: boolean | null
+          ownership_percent?: number | null
+          player_id?: number | null
+          predicted_points?: number | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "differential_alerts_gameweek_id_fkey"
+            columns: ["gameweek_id"]
+            isOneToOne: false
+            referencedRelation: "gameweeks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "differential_alerts_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fixtures: {
         Row: {
           away_score: number | null
@@ -164,6 +218,42 @@ export type Database = {
         }
         Relationships: []
       }
+      news_articles: {
+        Row: {
+          content: string | null
+          id: number
+          player_mentions: Json | null
+          published_at: string | null
+          relevance_score: number | null
+          scraped_at: string
+          source: string
+          title: string | null
+          url: string | null
+        }
+        Insert: {
+          content?: string | null
+          id?: number
+          player_mentions?: Json | null
+          published_at?: string | null
+          relevance_score?: number | null
+          scraped_at?: string
+          source: string
+          title?: string | null
+          url?: string | null
+        }
+        Update: {
+          content?: string | null
+          id?: number
+          player_mentions?: Json | null
+          published_at?: string | null
+          relevance_score?: number | null
+          scraped_at?: string
+          source?: string
+          title?: string | null
+          url?: string | null
+        }
+        Relationships: []
+      }
       optimal_teams: {
         Row: {
           accuracy_percentage: number | null
@@ -219,6 +309,60 @@ export type Database = {
             columns: ["gameweek_id"]
             isOneToOne: true
             referencedRelation: "gameweeks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      player_hype: {
+        Row: {
+          created_at: string
+          gameweek_id: number | null
+          hype_score: number | null
+          id: number
+          mentions: number | null
+          player_id: number | null
+          sentiment: string | null
+          sources: Json | null
+          trending_direction: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          gameweek_id?: number | null
+          hype_score?: number | null
+          id?: number
+          mentions?: number | null
+          player_id?: number | null
+          sentiment?: string | null
+          sources?: Json | null
+          trending_direction?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          gameweek_id?: number | null
+          hype_score?: number | null
+          id?: number
+          mentions?: number | null
+          player_id?: number | null
+          sentiment?: string | null
+          sources?: Json | null
+          trending_direction?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_hype_gameweek_id_fkey"
+            columns: ["gameweek_id"]
+            isOneToOne: false
+            referencedRelation: "gameweeks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_hype_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
             referencedColumns: ["id"]
           },
         ]
@@ -404,6 +548,33 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       teams: {
         Row: {
           created_at: string
@@ -506,6 +677,7 @@ export type Database = {
           player_ids: number[]
           team_name: string | null
           updated_at: string
+          user_id: string | null
           vice_captain_id: number | null
         }
         Insert: {
@@ -523,6 +695,7 @@ export type Database = {
           player_ids?: number[]
           team_name?: string | null
           updated_at?: string
+          user_id?: string | null
           vice_captain_id?: number | null
         }
         Update: {
@@ -540,6 +713,7 @@ export type Database = {
           player_ids?: number[]
           team_name?: string | null
           updated_at?: string
+          user_id?: string | null
           vice_captain_id?: number | null
         }
         Relationships: []
