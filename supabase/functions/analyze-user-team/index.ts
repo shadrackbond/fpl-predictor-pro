@@ -50,15 +50,28 @@ serve(async (req) => {
 
     console.log(`Fetching user team: ${fpl_team_id} for gameweek: ${gameweek_id}`);
 
-    // Fetch user's FPL team data from FPL API
-    const entryResponse = await fetch(`https://fantasy.premierleague.com/api/entry/${fpl_team_id}/`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
+    // Use browser-like headers — some FPL endpoints block minimal bot headers
+    const fplHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Referer': 'https://fantasy.premierleague.com/',
+      'Origin': 'https://fantasy.premierleague.com'
+    };
+
+    // Fetch user's FPL team data from FPL API (try once, retry on 403)
+    let entryResponse = await fetch(`https://fantasy.premierleague.com/api/entry/${fpl_team_id}/`, { headers: fplHeaders });
+    if (!entryResponse.ok && entryResponse.status === 403) {
+      const body = await entryResponse.text().catch(() => '');
+      console.warn(`FPL returned 403 on first attempt: ${body}`);
+      // Retry with the same headers once in case of transient block
+      entryResponse = await fetch(`https://fantasy.premierleague.com/api/entry/${fpl_team_id}/`, { headers: fplHeaders });
+    }
 
     if (!entryResponse.ok) {
-      throw new Error(`Failed to fetch FPL team: ${entryResponse.status}. Please check your FPL ID.`);
+      const body = await entryResponse.text().catch(() => '');
+      console.error(`Failed to fetch FPL team: ${entryResponse.status}`, body);
+      throw new Error(`Failed to fetch FPL team: ${entryResponse.status}. ${body ? 'Remote message: ' + body : 'Please check your FPL ID or that the FPL API is reachable from this environment.'}`);
     }
 
     const entryData = await entryResponse.json();
