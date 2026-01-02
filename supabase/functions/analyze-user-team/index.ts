@@ -13,15 +13,40 @@ serve(async (req) => {
 
   try {
     const { fpl_team_id, gameweek_id } = await req.json();
-    
+
     if (!fpl_team_id) {
       throw new Error('FPL Team ID is required');
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars');
+      return new Response(JSON.stringify({ error: 'Server misconfiguration' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Try to resolve the invoking user from the Authorization header (access token)
+    const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
+    const accessToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+    let invokingUser: any = null;
+    if (accessToken) {
+      try {
+        const { data: userData, error: userErr } = await supabase.auth.getUser(accessToken);
+        if (userErr) console.warn('Failed to get user from token:', userErr);
+        invokingUser = userData?.user ?? null;
+      } catch (e) {
+        console.warn('Error fetching user from token', e);
+      }
+    }
+
+    if (!invokingUser) {
+      console.warn('No authenticated user found in request');
+      return new Response(JSON.stringify({ error: 'Unauthorized - missing or invalid auth token' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     console.log(`Fetching user team: ${fpl_team_id} for gameweek: ${gameweek_id}`);
 
@@ -48,7 +73,7 @@ serve(async (req) => {
         .select('id, fpl_id')
         .eq('is_next', true)
         .maybeSingle();
-      
+
       if (nextGw) {
         targetGwId = nextGw.id;
       } else {
@@ -61,7 +86,7 @@ serve(async (req) => {
         targetGwId = currentGw?.id;
       }
     }
-    
+
     console.log(`Using gameweek ID: ${targetGwId}`);
 
     // Get gameweek fpl_id for API calls
@@ -76,7 +101,7 @@ serve(async (req) => {
     // Fetch user's picks for the gameweek - try target gameweek first, then fallback to most recent
     let picksData: any = null;
     let actualPicksGw = fplGwId;
-    
+
     // First try target gameweek
     const picksResponse = await fetch(
       `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/event/${fplGwId}/picks/`,
@@ -90,14 +115,14 @@ serve(async (req) => {
     if (picksResponse.ok) {
       picksData = await picksResponse.json();
     }
-    
+
     // If no picks for target gameweek, find the most recent gameweek with picks
     if (!picksData?.picks?.length) {
       console.log(`No picks found for GW ${fplGwId}, searching for most recent picks...`);
-      
+
       // Get the current event from entry data to know the latest available gameweek
       const currentEvent = entryData.current_event || fplGwId;
-      
+
       // Try to fetch picks from the most recent completed gameweek
       for (let gw = currentEvent; gw >= 1; gw--) {
         const fallbackResponse = await fetch(
@@ -108,7 +133,7 @@ serve(async (req) => {
             }
           }
         );
-        
+
         if (fallbackResponse.ok) {
           const fallbackData = await fallbackResponse.json();
           if (fallbackData?.picks?.length) {
@@ -120,11 +145,11 @@ serve(async (req) => {
         }
       }
     }
-    
+
     if (!picksData?.picks?.length) {
       throw new Error('Could not find any team picks. Please make sure you have set up your team on the FPL website.');
     }
-    
+
     console.log(`Using team picks from GW ${actualPicksGw}, analyzing for GW ${fplGwId}`);
 
     // Fetch user's transfer history
@@ -144,7 +169,7 @@ serve(async (req) => {
 
     // Map FPL player IDs to our player IDs
     const fplPlayerIds = picksData?.picks?.map((p: any) => p.element) || [];
-    
+
     const { data: ourPlayers } = await supabase
       .from('players')
       .select('id, fpl_id, web_name, position, price, form, total_points, team_id, teams:team_id(short_name)')
@@ -178,15 +203,15 @@ serve(async (req) => {
     const allChips = ['wildcard', 'freehit', 'bboost', '3xc'];
     const chipNameMap: Record<string, string> = {
       'wildcard': 'wildcard',
-      'freehit': 'freehit', 
+      'freehit': 'freehit',
       'bboost': 'bboost',
       '3xc': 'triple_captain'
     };
-    
+
     // Get chips used from history endpoint
     const chipsUsed = historyData?.chips || [];
     console.log('Chips used from history:', JSON.stringify(chipsUsed));
-    
+
     const chipsAvailable = allChips
       .filter(chip => !chipsUsed.some((used: any) => used.name === chip))
       .map(chip => chipNameMap[chip] || chip);
@@ -194,6 +219,7 @@ serve(async (req) => {
     // Save or update user team
     const userTeamData = {
       fpl_team_id,
+      user_id: invokingUser.id,
       team_name: entryData.name,
       overall_rank: entryData.summary_overall_rank,
       overall_points: entryData.summary_overall_points,
@@ -247,23 +273,23 @@ serve(async (req) => {
     // Create fixture difficulty map
     const teamDifficulty = new Map<number, { opponent: string; difficulty: number }>();
     fixtures?.forEach((f: any) => {
-      teamDifficulty.set(f.home_team_id, { 
-        opponent: f.away_team?.short_name || 'TBD', 
-        difficulty: f.home_team_difficulty || 3 
+      teamDifficulty.set(f.home_team_id, {
+        opponent: f.away_team?.short_name || 'TBD',
+        difficulty: f.home_team_difficulty || 3
       });
-      teamDifficulty.set(f.away_team_id, { 
-        opponent: f.home_team?.short_name || 'TBD', 
-        difficulty: f.away_team_difficulty || 3 
+      teamDifficulty.set(f.away_team_id, {
+        opponent: f.home_team?.short_name || 'TBD',
+        difficulty: f.away_team_difficulty || 3
       });
     });
 
     // Get user's current players with predictions
-    const userPlayerPreds = predictions?.filter(p => 
+    const userPlayerPreds = predictions?.filter(p =>
       ourPlayerIds.includes(p.player_id)
     ) || [];
 
     // Get all other players not in user's team
-    const otherPlayerPreds = predictions?.filter(p => 
+    const otherPlayerPreds = predictions?.filter(p =>
       !ourPlayerIds.includes(p.player_id)
     ) || [];
 
@@ -289,7 +315,7 @@ serve(async (req) => {
     // Get top potential replacements for each position
     const topReplacements: any[] = [];
     const positions = ['GKP', 'DEF', 'MID', 'FWD'];
-    
+
     positions.forEach(pos => {
       const posPlayers = otherPlayerPreds
         .filter(p => p.player?.position === pos)
@@ -313,9 +339,9 @@ serve(async (req) => {
     const bank = (picksData?.entry_history?.bank || 0) / 10;
 
     // Find the best captain candidate in user's team (highest predicted points)
-    const bestCaptainCandidate = userPlayersData.reduce((best, player) => 
+    const bestCaptainCandidate = userPlayersData.reduce((best, player) =>
       player.predicted_points > (best?.predicted_points || 0) ? player : best
-    , userPlayersData[0]);
+      , userPlayersData[0]);
 
     // Find the best overall captain candidate across ALL FPL players
     const allPlayersForTC = predictions?.map(pred => ({
@@ -325,10 +351,10 @@ serve(async (req) => {
       predicted_points: pred.predicted_points,
       fixture_difficulty: teamDifficulty.get(pred.player?.team_id)?.difficulty || 3,
     })) || [];
-    
-    const bestOverallTC = allPlayersForTC.reduce((best, player) => 
+
+    const bestOverallTC = allPlayersForTC.reduce((best, player) =>
       player.predicted_points > (best?.predicted_points || 0) ? player : best
-    , allPlayersForTC[0]);
+      , allPlayersForTC[0]);
 
     const aiPrompt = `You are an FPL expert. Analyze this user's team and suggest the best transfers and optimal lineup.
 
@@ -420,7 +446,7 @@ IMPORTANT Analysis Guidelines:
       } else {
         const aiData = await aiResponse.json();
         const content = aiData.choices?.[0]?.message?.content || '{}';
-        
+
         // Parse JSON from AI response
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -504,8 +530,8 @@ IMPORTANT Analysis Guidelines:
 
   } catch (error) {
     console.error('Error in analyze-user-team:', error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : 'Unknown error'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -514,24 +540,24 @@ IMPORTANT Analysis Guidelines:
 });
 
 function generateFallbackAnalysis(
-  userPlayerPreds: any[], 
-  otherPlayerPreds: any[], 
+  userPlayerPreds: any[],
+  otherPlayerPreds: any[],
   freeTransfers: number,
   chipsAvailable: string[]
 ) {
   // Simple fallback: find lowest performing players and suggest replacements
   const sortedUserPlayers = [...userPlayerPreds].sort((a, b) => a.predicted_points - b.predicted_points);
   const sortedByPoints = [...userPlayerPreds].sort((a, b) => b.predicted_points - a.predicted_points);
-  
+
   const transfers: any[] = [];
 
   for (let i = 0; i < Math.min(3, sortedUserPlayers.length); i++) {
     const playerOut = sortedUserPlayers[i];
     const position = playerOut.player?.position;
-    
+
     // Find best replacement in same position
-    const replacement = otherPlayerPreds.find(p => 
-      p.player?.position === position && 
+    const replacement = otherPlayerPreds.find(p =>
+      p.player?.position === position &&
       p.player?.price <= (playerOut.player?.price || 0) + 0.5
     );
 
@@ -555,21 +581,21 @@ function generateFallbackAnalysis(
   const defs = sortedByPoints.filter(p => p.player?.position === 'DEF');
   const mids = sortedByPoints.filter(p => p.player?.position === 'MID');
   const fwds = sortedByPoints.filter(p => p.player?.position === 'FWD');
-  
+
   // Must have exactly: 1 GK, at least 3 DEF, at least 2 MID, at least 1 FWD = 7 minimum
   // Need to fill remaining 4 spots with best available from DEF/MID/FWD
   if (gks[0]) suggestedLineup.push(gks[0].player_id);
-  
+
   // Start with minimum: 3 DEF, 2 MID, 1 FWD
   defs.slice(0, 3).forEach(p => suggestedLineup.push(p.player_id));
   mids.slice(0, 2).forEach(p => suggestedLineup.push(p.player_id));
   fwds.slice(0, 1).forEach(p => suggestedLineup.push(p.player_id));
-  
+
   // Fill remaining 4 spots with best available outfield players not already selected
   const remainingPlayers = [...defs.slice(3), ...mids.slice(2), ...fwds.slice(1)]
     .filter(p => p.player_id && !suggestedLineup.includes(p.player_id))
     .sort((a, b) => b.predicted_points - a.predicted_points);
-  
+
   for (const p of remainingPlayers) {
     if (suggestedLineup.length >= 11) break;
     suggestedLineup.push(p.player_id);
@@ -577,11 +603,11 @@ function generateFallbackAnalysis(
 
   // Find best captain candidate in user's team
   const bestCandidate = sortedByPoints[0];
-  
+
   // Find best overall captain candidate from ALL players
-  const bestOverallCandidate = otherPlayerPreds.reduce((best, pred) => 
+  const bestOverallCandidate = otherPlayerPreds.reduce((best, pred) =>
     pred.predicted_points > (best?.predicted_points || 0) ? pred : best
-  , otherPlayerPreds[0]);
+    , otherPlayerPreds[0]);
 
   // Enhanced chip analysis with candidates
   const chipAnalysis = chipsAvailable.map(chip => {
@@ -590,7 +616,7 @@ function generateFallbackAnalysis(
         chip_name: chip,
         success_percentage: bestCandidate && bestCandidate.predicted_points > 8 ? 65 : 30,
         recommendation: bestCandidate && bestCandidate.predicted_points > 10 ? 'use' : 'save',
-        analysis: bestCandidate 
+        analysis: bestCandidate
           ? `${bestCandidate.player?.web_name} has ${bestCandidate.predicted_points.toFixed(1)} predicted points. ${bestCandidate.predicted_points > 10 ? 'Great week for TC!' : 'Consider waiting for a better opportunity.'}`
           : 'Analyze fixture difficulty for best TC timing.',
         best_candidate: bestCandidate?.player?.web_name,
