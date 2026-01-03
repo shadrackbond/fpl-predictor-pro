@@ -22,22 +22,22 @@ export function useUserTeam() {
   return useQuery({
     queryKey: ['user-team', userId],
     queryFn: async () => {
-      const query = supabase
+      // Only fetch if user is logged in
+      if (!userId) return null;
+
+      const { data, error } = await supabase
         .from('user_teams')
         .select('*')
+        .eq('user_id', userId)
         .order('updated_at', { ascending: false })
-        .limit(1);
-
-      // If user is logged in, filter by their user_id
-      if (userId) {
-        query.eq('user_id', userId);
-      }
-
-      const { data, error } = await query.maybeSingle();
+        .limit(1)
+        .maybeSingle();
 
       if (error) throw error;
       return data;
     },
+    // Only enable query when we have a userId
+    enabled: !!userId,
   });
 }
 

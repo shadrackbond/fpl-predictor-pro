@@ -65,9 +65,10 @@ serve(async (req) => {
 
     const differentials: any[] = [];
 
-    // Analyze each player for differential potential
+    // Analyze each player for differential potential - only active (available) players
     for (const pred of (predictions || [])) {
       const player = pred.player as any;
+      // Only consider active/available players (status 'a')
       if (!player || player.status !== 'a') continue;
 
       const hype = hypeMap.get(pred.player_id);
