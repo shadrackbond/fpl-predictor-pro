@@ -19,7 +19,7 @@ export default function Auth() {
 
   useEffect(() => {
     if (user) {
-      navigate('/');
+      navigate('/app');
     }
   }, [user, navigate]);
 
@@ -42,7 +42,7 @@ export default function Auth() {
       }
     } else {
       toast.success('Welcome back!');
-      navigate('/');
+      navigate('/app');
     }
   };
 
@@ -69,7 +69,7 @@ export default function Auth() {
       }
     } else {
       toast.success('Account created successfully!');
-      navigate('/');
+      navigate('/app');
     }
   };
 

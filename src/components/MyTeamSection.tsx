@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,12 +32,8 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
   const analyzeTeam = useAnalyzeUserTeam();
   const deleteTeam = useDeleteUserTeam();
 
-  // Auto-refresh analysis when gameweek changes
-  useEffect(() => {
-    if (userTeam?.fpl_team_id && gameweekId) {
-      analyzeTeam.mutate({ fpl_team_id: userTeam.fpl_team_id, gameweek_id: gameweekId });
-    }
-  }, [gameweekId, userTeam?.fpl_team_id]);
+  // Track if we've already auto-analyzed for this team + gameweek combo
+  const analyzedRef = useRef<string | null>(null);
 
   const handleImportTeam = () => {
     const teamId = parseInt(fplId.trim());

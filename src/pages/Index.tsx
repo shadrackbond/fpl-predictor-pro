@@ -12,6 +12,7 @@ import { AccuracyDashboard } from '@/components/AccuracyDashboard';
 import { ResultsSection } from '@/components/ResultsSection';
 import { DifferentialsDashboard } from '@/components/DifferentialsDashboard';
 import { NewsFeed } from '@/components/NewsFeed';
+import { InjuredPlayersSection } from '@/components/InjuredPlayersSection';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useGameweeks,
@@ -36,7 +37,8 @@ import {
   Activity,
   BarChart3,
   Flame,
-  Newspaper
+  Newspaper,
+  Bandage
 } from 'lucide-react';
 
 const Index = () => {
@@ -285,6 +287,13 @@ const Index = () => {
                 <Target className="w-4 h-4" />
                 Accuracy
               </TabsTrigger>
+              <TabsTrigger 
+                value="injuries" 
+                className="gap-2 data-[state=active]:bg-red-500 data-[state=active]:text-white transition-all"
+              >
+                <Bandage className="w-4 h-4" />
+                Injuries
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="myteam" className="animate-fade-in">
@@ -343,6 +352,10 @@ const Index = () => {
 
             <TabsContent value="accuracy" className="animate-fade-in">
               <AccuracyDashboard selectedGameweekId={selectedGameweekId} />
+            </TabsContent>
+
+            <TabsContent value="injuries" className="animate-fade-in">
+              <InjuredPlayersSection />
             </TabsContent>
           </Tabs>
         )}
