@@ -1,10 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Input validation schema
+const requestSchema = z.object({
+  gameweek_id: z.number({
+    required_error: 'gameweek_id is required',
+    invalid_type_error: 'gameweek_id must be a number'
+  }).int({ message: 'gameweek_id must be an integer' }).positive({ message: 'gameweek_id must be positive' }).max(100, { message: 'gameweek_id must be 100 or less' })
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -18,11 +27,22 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { gameweek_id } = await req.json();
-
-    if (!gameweek_id) {
-      throw new Error('gameweek_id is required');
+    const body = await req.json();
+    
+    // Validate input
+    const parseResult = requestSchema.safeParse(body);
+    if (!parseResult.success) {
+      console.error('Validation error:', parseResult.error.errors);
+      return new Response(JSON.stringify({ 
+        error: 'Invalid input', 
+        details: parseResult.error.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
+    
+    const { gameweek_id } = parseResult.data;
 
     console.log(`Analyzing differentials for gameweek ${gameweek_id}...`);
 
