@@ -1,10 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Input validation schema
+const requestSchema = z.object({
+  fpl_team_id: z.number({
+    required_error: 'FPL Team ID is required',
+    invalid_type_error: 'FPL Team ID must be a number'
+  }).int({ message: 'FPL Team ID must be an integer' }).positive({ message: 'FPL Team ID must be positive' }).max(100000000, { message: 'FPL Team ID is too large' }),
+  gameweek_id: z.number().int().positive().max(100).nullable().optional()
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -12,11 +22,22 @@ serve(async (req) => {
   }
 
   try {
-    const { fpl_team_id, gameweek_id } = await req.json();
-
-    if (!fpl_team_id) {
-      throw new Error('FPL Team ID is required');
+    const body = await req.json();
+    
+    // Validate input
+    const parseResult = requestSchema.safeParse(body);
+    if (!parseResult.success) {
+      console.error('Validation error:', parseResult.error.errors);
+      return new Response(JSON.stringify({ 
+        error: 'Invalid input', 
+        details: parseResult.error.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
+    
+    const { fpl_team_id, gameweek_id } = parseResult.data;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
