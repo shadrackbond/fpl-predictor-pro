@@ -136,19 +136,17 @@ serve(async (req) => {
     let picksData: any = null;
     let actualPicksGw = fplGwId;
 
-    // First try target gameweek
-    const picksResponse = await fetch(
-      `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/event/${fplGwId}/picks/`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      }
-    );
+    const fetchPicks = async (gw: number) => {
+      const res = await fetch(
+        `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/event/${gw}/picks/`,
+        { headers: fplHeaders }
+      );
+      if (!res.ok) return null;
+      return await res.json();
+    };
 
-    if (picksResponse.ok) {
-      picksData = await picksResponse.json();
-    }
+    // First try target gameweek
+    picksData = await fetchPicks(fplGwId);
 
     // If no picks for target gameweek, find the most recent gameweek with picks
     if (!picksData?.picks?.length) {
@@ -159,23 +157,12 @@ serve(async (req) => {
 
       // Try to fetch picks from the most recent completed gameweek
       for (let gw = currentEvent; gw >= 1; gw--) {
-        const fallbackResponse = await fetch(
-          `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/event/${gw}/picks/`,
-          {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-          }
-        );
-
-        if (fallbackResponse.ok) {
-          const fallbackData = await fallbackResponse.json();
-          if (fallbackData?.picks?.length) {
-            picksData = fallbackData;
-            actualPicksGw = gw;
-            console.log(`Found picks from GW ${gw}`);
-            break;
-          }
+        const fallbackData = await fetchPicks(gw);
+        if (fallbackData?.picks?.length) {
+          picksData = fallbackData;
+          actualPicksGw = gw;
+          console.log(`Found picks from GW ${gw}`);
+          break;
         }
       }
     }
@@ -186,19 +173,18 @@ serve(async (req) => {
 
     console.log(`Using team picks from GW ${actualPicksGw}, analyzing for GW ${fplGwId}`);
 
-    // Fetch user's transfer history
-    const transfersResponse = await fetch(
-      `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/transfers/`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      }
-    );
-
+    // Fetch user's transfer history (best-effort)
     let transfersData: any[] = [];
-    if (transfersResponse.ok) {
-      transfersData = await transfersResponse.json();
+    try {
+      const transfersResponse = await fetch(
+        `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/transfers/`,
+        { headers: fplHeaders }
+      );
+      if (transfersResponse.ok) {
+        transfersData = await transfersResponse.json();
+      }
+    } catch (e) {
+      console.warn('Failed to fetch transfer history (non-blocking):', e);
     }
 
     // Map FPL player IDs to our player IDs
@@ -210,47 +196,77 @@ serve(async (req) => {
       .in('fpl_id', fplPlayerIds);
 
     const fplToOurId = new Map(ourPlayers?.map(p => [p.fpl_id, p.id]) || []);
-    const playerMap = new Map(ourPlayers?.map(p => [p.fpl_id, p]) || []);
+    const ourPlayerIds = fplPlayerIds
+      .map((fplId: number) => fplToOurId.get(fplId))
+      .filter((v: any) => typeof v === 'number');
 
-    const ourPlayerIds = fplPlayerIds.map((fplId: number) => fplToOurId.get(fplId)).filter(Boolean);
+    // Derive actual starting XI from picks (position 1-11 are starters)
+    const sortedPicks = [...(picksData?.picks || [])].sort((a: any, b: any) => a.position - b.position);
+    const startingFplIds = sortedPicks.filter((p: any) => p.position <= 11).map((p: any) => p.element);
+    const benchFplIds = sortedPicks.filter((p: any) => p.position > 11).map((p: any) => p.element);
+
+    const startingOurIds: number[] = startingFplIds
+      .map((id: number) => fplToOurId.get(id))
+      .filter((v: any) => typeof v === 'number');
+
+    const benchOurIds: number[] = benchFplIds
+      .map((id: number) => fplToOurId.get(id))
+      .filter((v: any) => typeof v === 'number');
 
     // Find captain and vice captain
     const captainFplId = picksData?.picks?.find((p: any) => p.is_captain)?.element;
     const viceCaptainFplId = picksData?.picks?.find((p: any) => p.is_vice_captain)?.element;
 
-    // Fetch chip history from the history endpoint
-    const historyResponse = await fetch(
-      `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/history/`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      }
-    );
+    const captainOurId: number | null = (typeof captainFplId === 'number' ? (fplToOurId.get(captainFplId) ?? null) : null);
+    const viceCaptainOurId: number | null = (typeof viceCaptainFplId === 'number' ? (fplToOurId.get(viceCaptainFplId) ?? null) : null);
 
+    // Keep at most one row per user + team id
+    const { data: existingTeam } = await supabase
+      .from('user_teams')
+      .select('id, chips_available')
+      .eq('user_id', invokingUser.id)
+      .eq('fpl_team_id', fpl_team_id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Fetch chip history from the history endpoint
     let historyData: any = null;
-    if (historyResponse.ok) {
-      historyData = await historyResponse.json();
+    try {
+      const historyResponse = await fetch(
+        `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/history/`,
+        { headers: fplHeaders }
+      );
+      if (historyResponse.ok) {
+        historyData = await historyResponse.json();
+      }
+    } catch (e) {
+      console.warn('Failed to fetch chip history (non-blocking):', e);
     }
 
     // Determine chips available from history
     const allChips = ['wildcard', 'freehit', 'bboost', '3xc'];
     const chipNameMap: Record<string, string> = {
-      'wildcard': 'wildcard',
-      'freehit': 'freehit',
-      'bboost': 'bboost',
-      '3xc': 'triple_captain'
+      wildcard: 'wildcard',
+      freehit: 'freehit',
+      bboost: 'bboost',
+      '3xc': 'triple_captain',
     };
 
-    // Get chips used from history endpoint
-    const chipsUsed = historyData?.chips || [];
-    console.log('Chips used from history:', JSON.stringify(chipsUsed));
+    const defaultChipsAvailable = allChips.map(chip => chipNameMap[chip] || chip);
 
-    const chipsAvailable = allChips
-      .filter(chip => !chipsUsed.some((used: any) => used.name === chip))
-      .map(chip => chipNameMap[chip] || chip);
+    let chipsAvailable: string[] = defaultChipsAvailable;
+    if (historyData) {
+      const chipsUsed = historyData?.chips || [];
+      console.log('Chips used from history:', JSON.stringify(chipsUsed));
+      chipsAvailable = allChips
+        .filter(chip => !chipsUsed.some((used: any) => used.name === chip))
+        .map(chip => chipNameMap[chip] || chip);
+    } else if (Array.isArray(existingTeam?.chips_available)) {
+      chipsAvailable = existingTeam.chips_available as string[];
+    }
 
-    // Save or update user team
+    // Save or update user team (scoped to the authenticated user)
     const userTeamData = {
       fpl_team_id,
       user_id: invokingUser.id,
@@ -263,20 +279,38 @@ serve(async (req) => {
       active_chip: picksData?.active_chip,
       chips_available: chipsAvailable,
       player_ids: ourPlayerIds,
-      captain_id: fplToOurId.get(captainFplId),
-      vice_captain_id: fplToOurId.get(viceCaptainFplId),
+      captain_id: captainOurId,
+      vice_captain_id: viceCaptainOurId,
       updated_at: new Date().toISOString(),
     };
 
-    const { data: savedTeam, error: saveError } = await supabase
-      .from('user_teams')
-      .upsert(userTeamData, { onConflict: 'fpl_team_id' })
-      .select()
-      .single();
+    let savedTeam: any = null;
 
-    if (saveError) {
-      console.error('Error saving team:', saveError);
-      throw saveError;
+    if (existingTeam?.id) {
+      const { data, error } = await supabase
+        .from('user_teams')
+        .update(userTeamData)
+        .eq('id', existingTeam.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating team:', error);
+        throw error;
+      }
+      savedTeam = data;
+    } else {
+      const { data, error } = await supabase
+        .from('user_teams')
+        .insert(userTeamData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error saving team:', error);
+        throw error;
+      }
+      savedTeam = data;
     }
 
     console.log('Team saved, generating transfer suggestions...');
@@ -494,6 +528,43 @@ IMPORTANT Analysis Guidelines:
       aiResult = generateFallbackAnalysis(userPlayerPreds, otherPlayerPreds, freeTransfers, chipsAvailable);
     }
 
+    // Normalize team comparison so numbers are stable and match the Optimal Team page
+    const predictedByPlayerId = new Map<number, number>();
+    (predictions || []).forEach((p: any) => {
+      if (typeof p?.player_id === 'number') predictedByPlayerId.set(p.player_id, p.predicted_points || 0);
+    });
+
+    const effectiveStartingXI = (startingOurIds.length === 11)
+      ? startingOurIds
+      : ourPlayerIds.slice(0, 11);
+
+    const sumStarting = effectiveStartingXI.reduce((sum: number, id: number) => sum + (predictedByPlayerId.get(id) || 0), 0);
+    const captainBonus = (captainOurId && effectiveStartingXI.includes(captainOurId))
+      ? (predictedByPlayerId.get(captainOurId) || 0)
+      : 0;
+
+    const currentPredictedPoints = Math.round((sumStarting + captainBonus) * 10) / 10;
+
+    const { data: optimalRow } = await supabase
+      .from('optimal_teams')
+      .select('total_predicted_points')
+      .eq('gameweek_id', targetGwId)
+      .maybeSingle();
+
+    const optimalPotentialPoints = Math.round(((optimalRow?.total_predicted_points ?? 0) as number) * 10) / 10;
+    const performanceDiff = optimalPotentialPoints > 0
+      ? Math.round((currentPredictedPoints / optimalPotentialPoints) * 100)
+      : 0;
+
+    aiResult = {
+      ...(aiResult || {}),
+      team_comparison: {
+        current_predicted_points: currentPredictedPoints,
+        optimal_potential_points: optimalPotentialPoints,
+        performance_diff: performanceDiff,
+      },
+    };
+
     // Save transfer suggestions
     if (aiResult?.transfers?.length > 0) {
       // Clear old suggestions
@@ -554,6 +625,7 @@ IMPORTANT Analysis Guidelines:
       team: savedTeam,
       transfers: aiResult?.transfers || [],
       suggested_lineup: aiResult?.suggested_lineup || [],
+      starting_xi: (startingOurIds.length === 11 ? startingOurIds : []),
       chip_analysis: aiResult?.chip_analysis || [],
       team_comparison: aiResult?.team_comparison || null,
       user_players: ourPlayers,

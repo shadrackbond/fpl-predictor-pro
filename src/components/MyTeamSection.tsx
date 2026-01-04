@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,8 +32,6 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
   const analyzeTeam = useAnalyzeUserTeam();
   const deleteTeam = useDeleteUserTeam();
 
-  // Track if we've already auto-analyzed for this team + gameweek combo
-  const analyzedRef = useRef<string | null>(null);
 
   const handleImportTeam = () => {
     const teamId = parseInt(fplId.trim());
@@ -250,15 +248,16 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
           </Card>
 
           {/* Team Simulator with Transfer/Sub capabilities */}
-          <TeamSimulator 
-            players={analysisData.user_players || []}
-            captainId={userTeam.captain_id}
-            viceCaptainId={userTeam.vice_captain_id}
-            suggestedLineup={showOptimized ? (analysisData.suggested_lineup || []) : undefined}
-            predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
-            showOptimized={showOptimized}
-            bank={userTeam.bank || 0}
-          />
+           <TeamSimulator 
+             players={analysisData.user_players || []}
+             captainId={userTeam.captain_id}
+             viceCaptainId={userTeam.vice_captain_id}
+             initialStartingXI={analysisData.starting_xi || undefined}
+             suggestedLineup={showOptimized ? (analysisData.suggested_lineup || []) : undefined}
+             predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
+             showOptimized={showOptimized}
+             bank={userTeam.bank || 0}
+           />
         </>
       )}
     </div>
