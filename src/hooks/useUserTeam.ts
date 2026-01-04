@@ -38,6 +38,11 @@ export function useUserTeam() {
     },
     // Only enable query when we have a userId
     enabled: !!userId,
+    // Avoid "auto refresh" feel when users switch tabs/pages; mutations explicitly invalidate.
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
 }
 

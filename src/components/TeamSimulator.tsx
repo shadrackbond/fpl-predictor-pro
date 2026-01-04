@@ -44,6 +44,7 @@ interface TeamSimulatorProps {
   players: Player[];
   captainId: number | null;
   viceCaptainId: number | null;
+  initialStartingXI?: number[];
   suggestedLineup?: number[];
   predictions?: Map<number, number>;
   showOptimized?: boolean;
@@ -59,7 +60,8 @@ interface SimulatedTransfer {
 export function TeamSimulator({ 
   players: originalPlayers, 
   captainId: originalCaptainId, 
-  viceCaptainId: originalViceCaptainId, 
+  viceCaptainId: originalViceCaptainId,
+  initialStartingXI,
   suggestedLineup,
   predictions = new Map(),
   showOptimized = false,
@@ -101,7 +103,7 @@ export function TeamSimulator({
     const playersToUse = simulatedPlayers;
     let starting: Player[];
     let benchPlayers: Player[];
-    
+
     if (showOptimized && suggestedLineup && suggestedLineup.length === 11) {
       starting = playersToUse.filter(p => suggestedLineup.includes(p.id));
       benchPlayers = playersToUse.filter(p => !suggestedLineup.includes(p.id));
@@ -109,6 +111,10 @@ export function TeamSimulator({
       // Use the manually set starting XI from substitutions
       starting = playersToUse.filter(p => simulatedStartingXI.includes(p.id));
       benchPlayers = playersToUse.filter(p => !simulatedStartingXI.includes(p.id));
+    } else if (initialStartingXI && initialStartingXI.length === 11) {
+      // Use the actual starting XI from FPL picks (preserves real formation/bench)
+      starting = playersToUse.filter(p => initialStartingXI.includes(p.id));
+      benchPlayers = playersToUse.filter(p => !initialStartingXI.includes(p.id));
     } else {
       // Build lineup based on selected formation
       const sorted = [...playersToUse].sort((a, b) => {
@@ -116,23 +122,23 @@ export function TeamSimulator({
         const ptsB = predictions.get(b.id) || b.total_points || 0;
         return ptsB - ptsA;
       });
-      
+
       const gk = sorted.find(p => p.position === 'GKP');
       const defs = sorted.filter(p => p.position === 'DEF');
       const mids = sorted.filter(p => p.position === 'MID');
       const fwds = sorted.filter(p => p.position === 'FWD');
-      
+
       starting = [];
       if (gk) starting.push(gk);
       defs.slice(0, formationReqs.def).forEach(p => starting.push(p));
       mids.slice(0, formationReqs.mid).forEach(p => starting.push(p));
       fwds.slice(0, formationReqs.fwd).forEach(p => starting.push(p));
-      
+
       benchPlayers = playersToUse.filter(p => !starting.includes(p));
     }
-    
+
     return { startingXI: starting, bench: benchPlayers.slice(0, 4) };
-  }, [simulatedPlayers, simulatedStartingXI, showOptimized, suggestedLineup, predictions, formationReqs]);
+  }, [simulatedPlayers, simulatedStartingXI, showOptimized, suggestedLineup, initialStartingXI, predictions, formationReqs]);
 
   // Reset to original
   const handleReset = useCallback(() => {
@@ -301,13 +307,16 @@ export function TeamSimulator({
 
   // Original total for comparison
   const originalTotalPredicted = useMemo(() => {
-    const origStarting = originalPlayers.slice(0, 11);
+    const origStarting = (initialStartingXI && initialStartingXI.length === 11)
+      ? originalPlayers.filter(p => initialStartingXI.includes(p.id))
+      : originalPlayers.slice(0, 11);
+
     return origStarting.reduce((sum, p) => {
       const pts = predictions.get(p.id) || 0;
       if (p.id === originalCaptainId) return sum + (pts * 2);
       return sum + pts;
     }, 0);
-  }, [originalPlayers, predictions, originalCaptainId]);
+  }, [originalPlayers, initialStartingXI, predictions, originalCaptainId]);
 
   const pointsDiff = totalPredicted - originalTotalPredicted;
 
