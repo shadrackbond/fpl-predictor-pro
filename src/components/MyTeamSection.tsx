@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserTeam, useAnalyzeUserTeam, useDeleteUserTeam } from '@/hooks/useUserTeam';
+import { useOptimalTeam } from '@/hooks/useFPLData';
 import { TransferSuggestions } from './TransferSuggestions';
 import { ChipAnalysis } from './ChipAnalysis';
 import { TeamComparison } from './TeamComparison';
@@ -25,13 +26,46 @@ interface MyTeamSectionProps {
   gameweekId: number | null;
 }
 
+type AnyAnalysis = any;
+
 export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
   const [fplId, setFplId] = useState('');
   const [showOptimized, setShowOptimized] = useState(false);
+
   const { data: userTeam, isLoading: loadingTeam } = useUserTeam();
+  const { data: optimalTeam } = useOptimalTeam(gameweekId);
+
   const analyzeTeam = useAnalyzeUserTeam();
   const deleteTeam = useDeleteUserTeam();
 
+  const [persistedAnalysis, setPersistedAnalysis] = useState<AnyAnalysis | null>(null);
+
+  const analysisCacheKey =
+    userTeam?.user_id && userTeam?.fpl_team_id && gameweekId
+      ? `myteam-analysis:${userTeam.user_id}:${userTeam.fpl_team_id}:${gameweekId}`
+      : null;
+
+  useEffect(() => {
+    if (!analysisCacheKey) return;
+    try {
+      const raw = localStorage.getItem(analysisCacheKey);
+      if (raw) setPersistedAnalysis(JSON.parse(raw));
+    } catch {
+      // ignore cache parse errors
+    }
+  }, [analysisCacheKey]);
+
+  useEffect(() => {
+    if (!analysisCacheKey) return;
+    if (!analyzeTeam.data) return;
+
+    setPersistedAnalysis(analyzeTeam.data as AnyAnalysis);
+    try {
+      localStorage.setItem(analysisCacheKey, JSON.stringify(analyzeTeam.data));
+    } catch {
+      // ignore quota errors
+    }
+  }, [analysisCacheKey, analyzeTeam.data]);
 
   const handleImportTeam = () => {
     const teamId = parseInt(fplId.trim());
@@ -115,8 +149,46 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
   }
 
   // Team already imported - show analysis
-  const analysisData = analyzeTeam.data;
+  const analysisData: AnyAnalysis | null = (analyzeTeam.data as AnyAnalysis) ?? persistedAnalysis;
   const hasAnalysis = !!analysisData;
+
+  const teamComparison = useMemo(() => {
+    if (!analysisData) return null;
+
+    const playerPreds = (analysisData.player_predictions || {}) as Record<string, unknown>;
+
+    const getPred = (id: number) => {
+      const v = (playerPreds[String(id)] ?? (playerPreds as any)[id]);
+      return typeof v === 'number' ? v : Number(v ?? 0);
+    };
+
+    const startingXI =
+      Array.isArray(analysisData.starting_xi) && analysisData.starting_xi.length === 11
+        ? (analysisData.starting_xi as number[])
+        : null;
+
+    const currentPredicted = startingXI
+      ? startingXI.reduce((sum, id) => sum + getPred(id), 0)
+      : (typeof analysisData.team_comparison?.current_predicted_points === 'number'
+        ? Number(analysisData.team_comparison.current_predicted_points)
+        : null);
+
+    const optimalPredicted = typeof optimalTeam?.total_predicted_points === 'number'
+      ? Number(optimalTeam.total_predicted_points)
+      : (typeof analysisData.team_comparison?.optimal_potential_points === 'number'
+        ? Number(analysisData.team_comparison.optimal_potential_points)
+        : null);
+
+    if (typeof currentPredicted !== 'number' || typeof optimalPredicted !== 'number') {
+      return analysisData.team_comparison ?? null;
+    }
+
+    return {
+      current_predicted_points: currentPredicted,
+      optimal_potential_points: optimalPredicted,
+      performance_diff: optimalPredicted - currentPredicted,
+    };
+  }, [analysisData, optimalTeam]);
 
   return (
     <div className="space-y-6">
@@ -200,8 +272,8 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
       {hasAnalysis && (
         <>
           {/* Team Comparison */}
-          {analysisData.team_comparison && (
-            <TeamComparison comparison={analysisData.team_comparison} />
+          {teamComparison && (
+            <TeamComparison comparison={teamComparison} />
           )}
 
           {/* Transfer Suggestions */}

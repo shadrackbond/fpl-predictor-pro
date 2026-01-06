@@ -233,19 +233,38 @@ serve(async (req) => {
     // Fetch chip history from the history endpoint
     let historyData: any = null;
     try {
-      const historyResponse = await fetch(
+      let historyResponse = await fetch(
         `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/history/`,
         { headers: fplHeaders }
       );
+
+      if (!historyResponse.ok && historyResponse.status === 403) {
+        const body = await historyResponse.text().catch(() => '');
+        console.warn(`FPL history returned 403 on first attempt: ${body}`);
+        historyResponse = await fetch(
+          `https://fantasy.premierleague.com/api/entry/${fpl_team_id}/history/`,
+          { headers: fplHeaders }
+        );
+      }
+
       if (historyResponse.ok) {
         historyData = await historyResponse.json();
+      } else {
+        const body = await historyResponse.text().catch(() => '');
+        console.warn(`Failed to fetch chip history: ${historyResponse.status}`, body);
       }
     } catch (e) {
       console.warn('Failed to fetch chip history (non-blocking):', e);
     }
 
     // Determine chips available from history
-    const allChips = ['wildcard', 'freehit', 'bboost', '3xc'];
+    const chipLimits: Record<string, number> = {
+      wildcard: 2,
+      freehit: 1,
+      bboost: 1,
+      '3xc': 1,
+    };
+
     const chipNameMap: Record<string, string> = {
       wildcard: 'wildcard',
       freehit: 'freehit',
@@ -253,14 +272,23 @@ serve(async (req) => {
       '3xc': 'triple_captain',
     };
 
-    const defaultChipsAvailable = allChips.map(chip => chipNameMap[chip] || chip);
+    const defaultChipsAvailable = Object.keys(chipLimits).map(chip => chipNameMap[chip] || chip);
 
     let chipsAvailable: string[] = defaultChipsAvailable;
     if (historyData) {
-      const chipsUsed = historyData?.chips || [];
+      const chipsUsed = Array.isArray(historyData?.chips) ? historyData.chips : [];
       console.log('Chips used from history:', JSON.stringify(chipsUsed));
-      chipsAvailable = allChips
-        .filter(chip => !chipsUsed.some((used: any) => used.name === chip))
+
+      const usedCounts = chipsUsed.reduce((acc: Record<string, number>, used: any) => {
+        const name = used?.name;
+        if (typeof name === 'string') {
+          acc[name] = (acc[name] || 0) + 1;
+        }
+        return acc;
+      }, {});
+
+      chipsAvailable = Object.keys(chipLimits)
+        .filter((chip) => (usedCounts[chip] || 0) < chipLimits[chip])
         .map(chip => chipNameMap[chip] || chip);
     } else if (Array.isArray(existingTeam?.chips_available)) {
       chipsAvailable = existingTeam.chips_available as string[];
