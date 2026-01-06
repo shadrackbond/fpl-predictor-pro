@@ -11,10 +11,10 @@ import { ChipAnalysis } from './ChipAnalysis';
 import { TeamComparison } from './TeamComparison';
 import { TeamSimulator } from './TeamSimulator';
 import { GameweekHistoryTable, type GameweekHistoryRow } from './GameweekHistoryTable';
-import { 
-  UserCircle, 
-  Download, 
-  TrendingUp, 
+import {
+  UserCircle,
+  Download,
+  TrendingUp,
   Trophy,
   Coins,
   ArrowLeftRight,
@@ -90,66 +90,6 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
 
   const isAnalyzing = analyzeTeam.isPending || deleteTeam.isPending;
 
-  if (loadingTeam) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
-
-  // No team imported yet
-  if (!userTeam) {
-    return (
-      <Card className="border-dashed border-2 border-border bg-card/50">
-        <CardHeader className="text-center pb-4">
-          <div className="w-16 h-16 rounded-full gradient-primary mx-auto mb-4 flex items-center justify-center">
-            <UserCircle className="w-8 h-8 text-primary-foreground" />
-          </div>
-          <CardTitle className="text-2xl">Import Your FPL Team</CardTitle>
-          <CardDescription className="max-w-md mx-auto">
-            Enter your FPL Team ID to analyze your team, get transfer suggestions, and compare against the optimal prediction.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="max-w-md mx-auto space-y-4">
-          <div className="flex gap-2">
-            <Input
-              type="text"
-              placeholder="Enter your FPL Team ID"
-              value={fplId}
-              onChange={(e) => setFplId(e.target.value)}
-              className="flex-1"
-            />
-            <Button 
-              onClick={handleImportTeam} 
-              disabled={isAnalyzing || !fplId.trim()}
-              className="gap-2"
-            >
-              {isAnalyzing ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  Import
-                </>
-              )}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground text-center">
-            Find your Team ID in the FPL website URL when viewing your team: 
-            <br />
-            <code className="bg-muted px-1 rounded">fantasy.premierleague.com/entry/<strong>YOUR_ID</strong>/event/...</code>
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Team already imported - show analysis
   const analysisData: AnyAnalysis | null = (analyzeTeam.data as AnyAnalysis) ?? persistedAnalysis;
   const hasAnalysis = !!analysisData;
 
@@ -191,6 +131,67 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
     };
   }, [analysisData, optimalTeam]);
 
+  if (loadingTeam) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  // No team imported yet
+  if (!userTeam) {
+    return (
+      <Card className="border-dashed border-2 border-border bg-card/50">
+        <CardHeader className="text-center pb-4">
+          <div className="w-16 h-16 rounded-full gradient-primary mx-auto mb-4 flex items-center justify-center">
+            <UserCircle className="w-8 h-8 text-primary-foreground" />
+          </div>
+          <CardTitle className="text-2xl">Import Your FPL Team</CardTitle>
+          <CardDescription className="max-w-md mx-auto">
+            Enter your FPL Team ID to analyze your team, get transfer suggestions, and compare against the optimal prediction.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="max-w-md mx-auto space-y-4">
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="Enter your FPL Team ID"
+              value={fplId}
+              onChange={(e) => setFplId(e.target.value)}
+              className="flex-1"
+            />
+            <Button
+              onClick={handleImportTeam}
+              disabled={isAnalyzing || !fplId.trim()}
+              className="gap-2"
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Import
+                </>
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground text-center">
+            Find your Team ID in the FPL website URL when viewing your team:
+            <br />
+            <code className="bg-muted px-1 rounded">fantasy.premierleague.com/entry/<strong>YOUR_ID</strong>/event/...</code>
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Team already imported - show analysis
+
   return (
     <div className="space-y-6">
       {/* Team Header */}
@@ -206,7 +207,7 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
                 <p className="text-muted-foreground">FPL ID: {userTeam.fpl_team_id}</p>
               </div>
             </div>
-            
+
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary" className="gap-1 py-1.5 px-3">
                 <TrendingUp className="w-3.5 h-3.5" />
@@ -228,8 +229,8 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={handleRefreshAnalysis}
               disabled={isAnalyzing}
@@ -247,8 +248,8 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
                 </>
               )}
             </Button>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
               onClick={handleChangeTeam}
               disabled={isAnalyzing}
@@ -278,14 +279,14 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
           )}
 
           {/* Transfer Suggestions */}
-          <TransferSuggestions 
-            suggestions={analysisData.transfers || []} 
+          <TransferSuggestions
+            suggestions={analysisData.transfers || []}
             freeTransfers={userTeam.free_transfers || 1}
             isLoading={isAnalyzing}
           />
 
           {/* Chip Analysis */}
-          <ChipAnalysis 
+          <ChipAnalysis
             chips={analysisData.chip_analysis || []}
             chipsAvailable={userTeam.chips_available as string[] || []}
             isLoading={isAnalyzing}
@@ -326,16 +327,16 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
           </Card>
 
           {/* Team Simulator with Transfer/Sub capabilities */}
-           <TeamSimulator 
-             players={analysisData.user_players || []}
-             captainId={userTeam.captain_id}
-             viceCaptainId={userTeam.vice_captain_id}
-             initialStartingXI={analysisData.starting_xi || undefined}
-             suggestedLineup={showOptimized ? (analysisData.suggested_lineup || []) : undefined}
-             predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
-             showOptimized={showOptimized}
-             bank={userTeam.bank || 0}
-           />
+          <TeamSimulator
+            players={analysisData.user_players || []}
+            captainId={userTeam.captain_id}
+            viceCaptainId={userTeam.vice_captain_id}
+            initialStartingXI={analysisData.starting_xi || undefined}
+            suggestedLineup={showOptimized ? (analysisData.suggested_lineup || []) : undefined}
+            predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
+            showOptimized={showOptimized}
+            bank={userTeam.bank || 0}
+          />
         </>
       )}
     </div>
