@@ -648,6 +648,46 @@ IMPORTANT Analysis Guidelines:
       }
     });
 
+    // Build gameweek history for actual vs predicted comparison
+    // historyData.current contains an array of each gameweek played
+    const gameweekHistoryRaw: Array<{ event: number; points: number; total_points: number; rank: number }> =
+      Array.isArray(historyData?.current) ? historyData.current : [];
+
+    // Fetch all prediction_history rows to map predicted points per gameweek
+    const { data: predictionHistoryRows } = await supabase
+      .from('prediction_history')
+      .select('gameweek_id, total_predicted_points');
+
+    // Map fpl gameweek fpl_id -> internal gameweek id
+    const { data: gameweekMapping } = await supabase
+      .from('gameweeks')
+      .select('id, fpl_id, name');
+
+    const fplIdToGw = new Map<number, { id: number; name: string }>();
+    gameweekMapping?.forEach((gw) => {
+      fplIdToGw.set(gw.fpl_id, { id: gw.id, name: gw.name });
+    });
+
+    const predictedPointsMap = new Map<number, number>();
+    predictionHistoryRows?.forEach((row) => {
+      if (row.gameweek_id !== null) {
+        predictedPointsMap.set(row.gameweek_id, Number(row.total_predicted_points));
+      }
+    });
+
+    const gameweekHistory = gameweekHistoryRaw.map((gw) => {
+      const gwInfo = fplIdToGw.get(gw.event);
+      const predictedPoints = gwInfo ? predictedPointsMap.get(gwInfo.id) ?? null : null;
+      return {
+        gameweek: gw.event,
+        gameweek_name: gwInfo?.name ?? `GW${gw.event}`,
+        actual_points: gw.points,
+        predicted_points: predictedPoints,
+        cumulative_points: gw.total_points,
+        rank: gw.rank,
+      };
+    });
+
     return new Response(JSON.stringify({
       success: true,
       team: savedTeam,
@@ -658,6 +698,7 @@ IMPORTANT Analysis Guidelines:
       team_comparison: aiResult?.team_comparison || null,
       user_players: ourPlayers,
       player_predictions: playerPredictionsMap,
+      gameweek_history: gameweekHistory,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
