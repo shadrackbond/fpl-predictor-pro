@@ -10,6 +10,7 @@ import { TransferSuggestions } from './TransferSuggestions';
 import { ChipAnalysis } from './ChipAnalysis';
 import { TeamComparison } from './TeamComparison';
 import { TeamSimulator } from './TeamSimulator';
+import { GameweekHistoryTable, type GameweekHistoryRow } from './GameweekHistoryTable';
 import { 
   UserCircle, 
   Download, 
@@ -289,6 +290,11 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
             chipsAvailable={userTeam.chips_available as string[] || []}
             isLoading={isAnalyzing}
           />
+
+          {/* Gameweek History Table */}
+          {Array.isArray(analysisData.gameweek_history) && analysisData.gameweek_history.length > 0 && (
+            <GameweekHistoryTable history={analysisData.gameweek_history as GameweekHistoryRow[]} />
+          )}
 
           {/* Team Display Toggle */}
           <Card className="bg-card border-border">
