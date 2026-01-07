@@ -3,10 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { UserMenu } from '@/components/UserMenu';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { GameweekSelector } from '@/components/GameweekSelector';
 import { OptimalTeamView } from '@/components/OptimalTeamView';
 import { PredictionsTable } from '@/components/PredictionsTable';
 import { FixturesOverview } from '@/components/FixturesOverview';
+import { FixtureTicker } from '@/components/FixtureTicker';
+import { CaptainPicker } from '@/components/CaptainPicker';
 import { MyTeamSection } from '@/components/MyTeamSection';
 import { AccuracyDashboard } from '@/components/AccuracyDashboard';
 import { ResultsSection } from '@/components/ResultsSection';
@@ -38,7 +41,9 @@ import {
   BarChart3,
   Flame,
   Newspaper,
-  Bandage
+  Bandage,
+  Crown,
+  LayoutGrid
 } from 'lucide-react';
 
 const Index = () => {
@@ -115,7 +120,8 @@ const Index = () => {
                     </p>
                   </div>
                 </div>
-                <div className="lg:hidden">
+                <div className="lg:hidden flex items-center gap-2">
+                  <ThemeToggle />
                   <UserMenu />
                 </div>
               </div>
@@ -147,7 +153,8 @@ const Index = () => {
 
             {/* Quick Stats & User Menu */}
             <div className="hidden lg:flex flex-col gap-3">
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <ThemeToggle />
                 <UserMenu />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -288,6 +295,20 @@ const Index = () => {
                 Accuracy
               </TabsTrigger>
               <TabsTrigger 
+                value="captain" 
+                className="gap-2 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground transition-all"
+              >
+                <Crown className="w-4 h-4" />
+                Captain
+              </TabsTrigger>
+              <TabsTrigger 
+                value="fdr" 
+                className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <LayoutGrid className="w-4 h-4" />
+                FDR
+              </TabsTrigger>
+              <TabsTrigger 
                 value="injuries" 
                 className="gap-2 data-[state=active]:bg-red-500 data-[state=active]:text-white transition-all"
               >
@@ -352,6 +373,14 @@ const Index = () => {
 
             <TabsContent value="accuracy" className="animate-fade-in">
               <AccuracyDashboard selectedGameweekId={selectedGameweekId} />
+            </TabsContent>
+
+            <TabsContent value="captain" className="animate-fade-in">
+              <CaptainPicker predictions={predictions || []} isLoading={loadingPreds} />
+            </TabsContent>
+
+            <TabsContent value="fdr" className="animate-fade-in">
+              <FixtureTicker gameweekCount={6} />
             </TabsContent>
 
             <TabsContent value="injuries" className="animate-fade-in">

@@ -6,6 +6,83 @@
 
 @layer base {
   :root {
+    /* Light theme */
+    --background: 0 0% 98%;
+    --foreground: 220 20% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 10%;
+
+    /* Pitch green as primary */
+    --primary: 142 70% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Muted for secondary */
+    --secondary: 220 15% 92%;
+    --secondary-foreground: 220 20% 20%;
+
+    --muted: 220 15% 94%;
+    --muted-foreground: 215 15% 45%;
+
+    /* Accent gold for highlights */
+    --accent: 45 90% 50%;
+    --accent-foreground: 220 20% 10%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 88%;
+    --input: 220 15% 88%;
+    --ring: 142 70% 40%;
+
+    --radius: 0.75rem;
+
+    /* Custom FPL colors */
+    --fpl-purple: 270 60% 50%;
+    --fpl-green: 142 70% 45%;
+    --fpl-gold: 45 90% 55%;
+    --fpl-red: 0 72% 51%;
+    --fpl-blue: 210 90% 50%;
+
+    /* Difficulty colors */
+    --difficulty-1: 142 70% 50%;
+    --difficulty-2: 85 60% 50%;
+    --difficulty-3: 45 80% 50%;
+    --difficulty-4: 25 90% 55%;
+    --difficulty-5: 0 72% 51%;
+
+    /* Position colors */
+    --pos-gkp: 45 90% 55%;
+    --pos-def: 142 70% 50%;
+    --pos-mid: 210 90% 55%;
+    --pos-fwd: 0 72% 55%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(142 70% 35%), hsl(142 70% 50%));
+    --gradient-gold: linear-gradient(135deg, hsl(45 90% 45%), hsl(45 90% 60%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(220 15% 96%));
+    --gradient-hero: linear-gradient(135deg, hsl(220 15% 96%) 0%, hsl(142 50% 92%) 50%, hsl(220 15% 96%) 100%);
+
+    /* Shadows */
+    --shadow-glow: 0 0 40px hsl(142 70% 45% / 0.15);
+    --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.08);
+    --shadow-elevated: 0 8px 32px hsl(0 0% 0% / 0.12);
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 220 20% 20%;
+    --sidebar-primary: 142 70% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 94%;
+    --sidebar-accent-foreground: 220 20% 20%;
+    --sidebar-border: 220 15% 88%;
+    --sidebar-ring: 142 70% 40%;
+  }
+
+  .dark {
     /* Dark sports theme with pitch green accents */
     --background: 220 20% 6%;
     --foreground: 210 40% 96%;
@@ -37,8 +114,6 @@
     --border: 220 15% 18%;
     --input: 220 15% 18%;
     --ring: 142 70% 45%;
-
-    --radius: 0.75rem;
 
     /* Custom FPL colors */
     --fpl-purple: 270 60% 50%;
