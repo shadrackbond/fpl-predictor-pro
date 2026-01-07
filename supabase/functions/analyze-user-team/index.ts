@@ -653,11 +653,6 @@ IMPORTANT Analysis Guidelines:
     const gameweekHistoryRaw: Array<{ event: number; points: number; total_points: number; rank: number }> =
       Array.isArray(historyData?.current) ? historyData.current : [];
 
-    // Fetch all prediction_history rows to map predicted points per gameweek
-    const { data: predictionHistoryRows } = await supabase
-      .from('prediction_history')
-      .select('gameweek_id, total_predicted_points');
-
     // Map fpl gameweek fpl_id -> internal gameweek id
     const { data: gameweekMapping } = await supabase
       .from('gameweeks')
@@ -668,16 +663,53 @@ IMPORTANT Analysis Guidelines:
       fplIdToGw.set(gw.fpl_id, { id: gw.id, name: gw.name });
     });
 
-    const predictedPointsMap = new Map<number, number>();
-    predictionHistoryRows?.forEach((row) => {
-      if (row.gameweek_id !== null) {
-        predictedPointsMap.set(row.gameweek_id, Number(row.total_predicted_points));
+    // Fetch player predictions for all gameweeks to calculate user's team predicted points
+    const { data: allPlayerPredictions } = await supabase
+      .from('player_predictions')
+      .select('gameweek_id, player_id, predicted_points');
+
+    // Group predictions by gameweek
+    const predictionsByGw = new Map<number, Map<number, number>>();
+    allPlayerPredictions?.forEach((pred) => {
+      if (pred.gameweek_id !== null && pred.player_id !== null) {
+        if (!predictionsByGw.has(pred.gameweek_id)) {
+          predictionsByGw.set(pred.gameweek_id, new Map());
+        }
+        predictionsByGw.get(pred.gameweek_id)!.set(pred.player_id, pred.predicted_points);
       }
     });
 
+    // For each gameweek, calculate predicted points based on user's team at that time
+    // We use the current team roster since we don't have historical picks per gameweek stored
     const gameweekHistory = gameweekHistoryRaw.map((gw) => {
       const gwInfo = fplIdToGw.get(gw.event);
-      const predictedPoints = gwInfo ? predictedPointsMap.get(gwInfo.id) ?? null : null;
+      let predictedPoints: number | null = null;
+
+      if (gwInfo) {
+        const gwPreds = predictionsByGw.get(gwInfo.id);
+        if (gwPreds) {
+          // Sum predictions for user's players (use first 11 as starting XI approximation)
+          const startingPlayers = ourPlayerIds.slice(0, 11);
+          let sum = 0;
+          let hasAnyPrediction = false;
+          startingPlayers.forEach((playerId: number) => {
+            const pred = gwPreds.get(playerId);
+            if (pred !== undefined) {
+              sum += pred;
+              hasAnyPrediction = true;
+            }
+          });
+          // Add captain bonus (first player assumed captain for historical)
+          if (captainOurId && startingPlayers.includes(captainOurId)) {
+            const captainPred = gwPreds.get(captainOurId);
+            if (captainPred !== undefined) sum += captainPred;
+          }
+          if (hasAnyPrediction) {
+            predictedPoints = Math.round(sum * 10) / 10;
+          }
+        }
+      }
+
       return {
         gameweek: gw.event,
         gameweek_name: gwInfo?.name ?? `GW${gw.event}`,

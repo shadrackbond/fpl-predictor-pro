@@ -296,7 +296,7 @@ const Index = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="myteam" className="animate-fade-in" forceMount>
+            <TabsContent value="myteam" className="animate-fade-in">
               <MyTeamSection gameweekId={selectedGameweekId} />
             </TabsContent>
 
