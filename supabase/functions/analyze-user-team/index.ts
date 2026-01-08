@@ -679,6 +679,17 @@ IMPORTANT Analysis Guidelines:
       }
     });
 
+    // Fetch actual bench points from FPL history if available
+    const benchPointsByGw: Record<number, number> = {};
+    if (Array.isArray(historyData?.current)) {
+      historyData.current.forEach((gw: any) => {
+        // FPL API provides points_on_bench in the history
+        if (typeof gw.points_on_bench === 'number') {
+          benchPointsByGw[gw.event] = gw.points_on_bench;
+        }
+      });
+    }
+
     // For each gameweek, calculate predicted points based on user's team at that time
     // We use the current team roster since we don't have historical picks per gameweek stored
     const gameweekHistory = gameweekHistoryRaw.map((gw) => {
@@ -717,6 +728,7 @@ IMPORTANT Analysis Guidelines:
         predicted_points: predictedPoints,
         cumulative_points: gw.total_points,
         rank: gw.rank,
+        bench_points: benchPointsByGw[gw.event] ?? 0,
       };
     });
 

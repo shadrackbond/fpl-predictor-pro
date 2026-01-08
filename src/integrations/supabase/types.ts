@@ -548,6 +548,41 @@ export type Database = {
           },
         ]
       }
+      price_changes: {
+        Row: {
+          change_date: string | null
+          created_at: string | null
+          id: number
+          new_price: number
+          old_price: number
+          player_id: number | null
+        }
+        Insert: {
+          change_date?: string | null
+          created_at?: string | null
+          id?: number
+          new_price: number
+          old_price: number
+          player_id?: number | null
+        }
+        Update: {
+          change_date?: string | null
+          created_at?: string | null
+          id?: number
+          new_price?: number
+          old_price?: number
+          player_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_changes_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

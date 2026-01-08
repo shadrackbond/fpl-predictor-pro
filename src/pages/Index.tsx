@@ -16,6 +16,7 @@ import { ResultsSection } from '@/components/ResultsSection';
 import { DifferentialsDashboard } from '@/components/DifferentialsDashboard';
 import { NewsFeed } from '@/components/NewsFeed';
 import { InjuredPlayersSection } from '@/components/InjuredPlayersSection';
+import { PriceWatch } from '@/components/PriceWatch';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useGameweeks,
@@ -43,7 +44,8 @@ import {
   Newspaper,
   Bandage,
   Crown,
-  LayoutGrid
+  LayoutGrid,
+  DollarSign
 } from 'lucide-react';
 
 const Index = () => {
@@ -315,6 +317,13 @@ const Index = () => {
                 <Bandage className="w-4 h-4" />
                 Injuries
               </TabsTrigger>
+              <TabsTrigger 
+                value="prices" 
+                className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <DollarSign className="w-4 h-4" />
+                Prices
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="myteam" className="animate-fade-in">
@@ -385,6 +394,10 @@ const Index = () => {
 
             <TabsContent value="injuries" className="animate-fade-in">
               <InjuredPlayersSection />
+            </TabsContent>
+
+            <TabsContent value="prices" className="animate-fade-in">
+              <PriceWatch />
             </TabsContent>
           </Tabs>
         )}
