@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserTeam, useAnalyzeUserTeam, useDeleteUserTeam } from '@/hooks/useUserTeam';
-import { useOptimalTeam } from '@/hooks/useFPLData';
+import { useOptimalTeam, useGameweeks } from '@/hooks/useFPLData';
 import { TransferSuggestions } from './TransferSuggestions';
 import { ChipAnalysis } from './ChipAnalysis';
 import { TeamComparison } from './TeamComparison';
 import { TeamSimulator } from './TeamSimulator';
 import { GameweekHistoryTable, type GameweekHistoryRow } from './GameweekHistoryTable';
+import { ShareTeamButton } from './ShareTeamButton';
 import {
   UserCircle,
   Download,
@@ -32,9 +33,11 @@ type AnyAnalysis = any;
 export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
   const [fplId, setFplId] = useState('');
   const [showOptimized, setShowOptimized] = useState(false);
+  const teamContainerRef = useRef<HTMLDivElement>(null);
 
   const { data: userTeam, isLoading: loadingTeam } = useUserTeam();
   const { data: optimalTeam } = useOptimalTeam(gameweekId);
+  const { data: gameweeks } = useGameweeks();
 
   const analyzeTeam = useAnalyzeUserTeam();
   const deleteTeam = useDeleteUserTeam();
@@ -258,6 +261,13 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
               <ArrowLeftRight className="w-4 h-4" />
               Change Team
             </Button>
+            <ShareTeamButton
+              teamName={userTeam.team_name || 'My FPL Team'}
+              points={userTeam.overall_points || undefined}
+              rank={userTeam.overall_rank || undefined}
+              gameweek={gameweeks?.find(gw => gw.id === gameweekId)?.name}
+              containerRef={teamContainerRef}
+            />
           </div>
         </CardContent>
       </Card>
@@ -327,16 +337,18 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
           </Card>
 
           {/* Team Simulator with Transfer/Sub capabilities */}
-          <TeamSimulator
-            players={analysisData.user_players || []}
-            captainId={userTeam.captain_id}
-            viceCaptainId={userTeam.vice_captain_id}
-            initialStartingXI={analysisData.starting_xi || undefined}
-            suggestedLineup={showOptimized ? (analysisData.suggested_lineup || []) : undefined}
-            predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
-            showOptimized={showOptimized}
-            bank={userTeam.bank || 0}
-          />
+          <div ref={teamContainerRef}>
+            <TeamSimulator
+              players={analysisData.user_players || []}
+              captainId={userTeam.captain_id}
+              viceCaptainId={userTeam.vice_captain_id}
+              initialStartingXI={analysisData.starting_xi || undefined}
+              suggestedLineup={showOptimized ? (analysisData.suggested_lineup || []) : undefined}
+              predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
+              showOptimized={showOptimized}
+              bank={userTeam.bank || 0}
+            />
+          </div>
         </>
       )}
     </div>

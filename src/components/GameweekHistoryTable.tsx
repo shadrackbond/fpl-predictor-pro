@@ -8,7 +8,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, BarChart3, Armchair } from 'lucide-react';
 
 export interface GameweekHistoryRow {
   gameweek: number;
@@ -17,6 +17,7 @@ export interface GameweekHistoryRow {
   predicted_points: number | null;
   cumulative_points: number;
   rank: number;
+  bench_points?: number;
 }
 
 interface GameweekHistoryTableProps {
@@ -30,6 +31,9 @@ export function GameweekHistoryTable({ history }: GameweekHistoryTableProps) {
 
   // Sort by gameweek descending (most recent first)
   const sorted = [...history].sort((a, b) => b.gameweek - a.gameweek);
+
+  // Calculate total bench points across all gameweeks
+  const totalBenchPoints = sorted.reduce((sum, row) => sum + (row.bench_points || 0), 0);
 
   const getDiffBadge = (actual: number, predicted: number | null) => {
     if (predicted === null) {
@@ -62,13 +66,26 @@ export function GameweekHistoryTable({ history }: GameweekHistoryTableProps) {
   return (
     <Card className="bg-card border-border">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-primary" />
-          Your FPL Points vs Predicted
-        </CardTitle>
-        <CardDescription>
-          Compare your actual gameweek points against the model's predictions
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              Your FPL Points vs Predicted
+            </CardTitle>
+            <CardDescription>
+              Compare your actual gameweek points against the model's predictions
+            </CardDescription>
+          </div>
+          {totalBenchPoints > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+              <Armchair className="w-4 h-4 text-orange-400" />
+              <div className="text-right">
+                <p className="text-sm font-semibold text-orange-400">{totalBenchPoints} pts</p>
+                <p className="text-xs text-muted-foreground">Left on bench</p>
+              </div>
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border border-border overflow-hidden">
@@ -79,6 +96,7 @@ export function GameweekHistoryTable({ history }: GameweekHistoryTableProps) {
                 <TableHead className="text-right">Actual</TableHead>
                 <TableHead className="text-right">Predicted</TableHead>
                 <TableHead className="text-right">Diff</TableHead>
+                <TableHead className="text-right">Bench</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-right">Rank</TableHead>
               </TableRow>
@@ -93,6 +111,13 @@ export function GameweekHistoryTable({ history }: GameweekHistoryTableProps) {
                   </TableCell>
                   <TableCell className="text-right">
                     {getDiffBadge(row.actual_points, row.predicted_points)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {row.bench_points !== undefined && row.bench_points > 0 ? (
+                      <span className="text-orange-400">{row.bench_points}</span>
+                    ) : (
+                      <span className="text-muted-foreground">0</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">{row.cumulative_points.toLocaleString()}</TableCell>
                   <TableCell className="text-right text-muted-foreground">
