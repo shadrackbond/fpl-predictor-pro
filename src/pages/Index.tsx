@@ -17,6 +17,8 @@ import { DifferentialsDashboard } from '@/components/DifferentialsDashboard';
 import { NewsFeed } from '@/components/NewsFeed';
 import { InjuredPlayersSection } from '@/components/InjuredPlayersSection';
 import { PriceWatch } from '@/components/PriceWatch';
+import { MiniLeagueRivals } from '@/components/MiniLeagueRivals';
+import { OnboardingTutorial } from '@/components/OnboardingTutorial';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useGameweeks,
@@ -45,7 +47,8 @@ import {
   Bandage,
   Crown,
   LayoutGrid,
-  DollarSign
+  DollarSign,
+  Swords
 } from 'lucide-react';
 
 const Index = () => {
@@ -90,6 +93,9 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Onboarding Tutorial for first-time users */}
+      <OnboardingTutorial />
+      
       {/* Hero Header */}
       <header className="relative overflow-hidden border-b border-border/50">
         <div className="absolute inset-0 gradient-hero" />
@@ -324,6 +330,13 @@ const Index = () => {
                 <DollarSign className="w-4 h-4" />
                 Prices
               </TabsTrigger>
+              <TabsTrigger 
+                value="rivals" 
+                className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <Swords className="w-4 h-4" />
+                Rivals
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="myteam" className="animate-fade-in">
@@ -398,6 +411,10 @@ const Index = () => {
 
             <TabsContent value="prices" className="animate-fade-in">
               <PriceWatch />
+            </TabsContent>
+
+            <TabsContent value="rivals" className="animate-fade-in">
+              <MiniLeagueRivals />
             </TabsContent>
           </Tabs>
         )}
