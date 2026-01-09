@@ -130,79 +130,86 @@ export function PredictionsTable({ predictions, isLoading, className }: Predicti
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table - Mobile Responsive */}
       <div className="rounded-xl border border-border overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent border-border">
-              <TableHead className="w-12">#</TableHead>
-              <TableHead>Player</TableHead>
-              <TableHead>Team</TableHead>
-              <TableHead className="text-center">Pos</TableHead>
-              <TableHead 
-                className="text-right cursor-pointer hover:text-foreground"
-                onClick={() => handleSort('predicted_points')}
-              >
-                xPts <SortIcon field="predicted_points" />
-              </TableHead>
-              <TableHead 
-                className="text-right cursor-pointer hover:text-foreground"
-                onClick={() => handleSort('price')}
-              >
-                Price <SortIcon field="price" />
-              </TableHead>
-              <TableHead 
-                className="text-right cursor-pointer hover:text-foreground"
-                onClick={() => handleSort('form')}
-              >
-                Form <SortIcon field="form" />
-              </TableHead>
-              <TableHead className="text-center">FDR</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredAndSorted.slice(0, 50).map((pred, index) => (
-              <TableRow 
-                key={pred.id} 
-                className="hover:bg-secondary/50 border-border transition-colors"
-              >
-                <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
-                <TableCell className="font-medium">{pred.player?.web_name}</TableCell>
-                <TableCell className="text-muted-foreground">{pred.player?.teams?.short_name}</TableCell>
-                <TableCell className="text-center">
-                  <Badge 
-                    variant="outline" 
-                    className={cn('text-xs', positionStyles[pred.player?.position as Position])}
-                  >
-                    {pred.player?.position}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <span className="font-bold font-mono text-primary">
-                    {pred.predicted_points.toFixed(1)}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right font-mono">
-                  £{pred.player?.price.toFixed(1)}m
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <TrendingUp className="w-3 h-3 text-primary" />
-                    <span className="font-mono">{pred.player?.form.toFixed(1)}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge 
-                    variant="outline" 
-                    className={cn('text-xs', getDifficultyClass(pred.fixture_difficulty))}
-                  >
-                    {pred.fixture_difficulty || '?'}
-                  </Badge>
-                </TableCell>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent border-border">
+                <TableHead className="w-12 hidden sm:table-cell">#</TableHead>
+                <TableHead>Player</TableHead>
+                <TableHead className="hidden md:table-cell">Team</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">Pos</TableHead>
+                <TableHead 
+                  className="text-right cursor-pointer hover:text-foreground"
+                  onClick={() => handleSort('predicted_points')}
+                >
+                  xPts <SortIcon field="predicted_points" />
+                </TableHead>
+                <TableHead 
+                  className="text-right cursor-pointer hover:text-foreground hidden sm:table-cell"
+                  onClick={() => handleSort('price')}
+                >
+                  Price <SortIcon field="price" />
+                </TableHead>
+                <TableHead 
+                  className="text-right cursor-pointer hover:text-foreground hidden md:table-cell"
+                  onClick={() => handleSort('form')}
+                >
+                  Form <SortIcon field="form" />
+                </TableHead>
+                <TableHead className="text-center hidden lg:table-cell">FDR</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filteredAndSorted.slice(0, 50).map((pred, index) => (
+                <TableRow 
+                  key={pred.id} 
+                  className="hover:bg-secondary/50 border-border transition-colors"
+                >
+                  <TableCell className="font-mono text-muted-foreground hidden sm:table-cell">{index + 1}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{pred.player?.web_name}</div>
+                    <div className="text-xs text-muted-foreground md:hidden">
+                      {pred.player?.teams?.short_name} · £{pred.player?.price.toFixed(1)}m
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground hidden md:table-cell">{pred.player?.teams?.short_name}</TableCell>
+                  <TableCell className="text-center hidden sm:table-cell">
+                    <Badge 
+                      variant="outline" 
+                      className={cn('text-xs', positionStyles[pred.player?.position as Position])}
+                    >
+                      {pred.player?.position}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className="font-bold font-mono text-primary">
+                      {pred.predicted_points.toFixed(1)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right font-mono hidden sm:table-cell">
+                    £{pred.player?.price.toFixed(1)}m
+                  </TableCell>
+                  <TableCell className="text-right hidden md:table-cell">
+                    <div className="flex items-center justify-end gap-1">
+                      <TrendingUp className="w-3 h-3 text-primary" />
+                      <span className="font-mono">{pred.player?.form.toFixed(1)}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center hidden lg:table-cell">
+                    <Badge 
+                      variant="outline" 
+                      className={cn('text-xs', getDifficultyClass(pred.fixture_difficulty))}
+                    >
+                      {pred.fixture_difficulty || '?'}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <p className="text-sm text-muted-foreground text-center">

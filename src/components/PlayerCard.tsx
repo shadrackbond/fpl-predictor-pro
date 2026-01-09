@@ -1,12 +1,16 @@
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Player, PlayerPrediction, Position, POSITION_COLORS } from '@/types/fpl';
-import { TrendingUp, AlertCircle, Star } from 'lucide-react';
+import { TrendingUp, AlertCircle, Star, Target, Flag, CircleDot } from 'lucide-react';
 
 interface PlayerCardProps {
   prediction: PlayerPrediction & { 
     player: Player & { 
-      teams: { id: number; name: string; short_name: string } | null 
+      teams: { id: number; name: string; short_name: string } | null;
+      penalties_order?: number | null;
+      corners_order?: number | null;
+      direct_freekicks_order?: number | null;
     } 
   };
   isCaptain?: boolean;
@@ -36,6 +40,12 @@ export function PlayerCard({ prediction, isCaptain, isViceCaptain, className }: 
     return null;
   };
 
+  // Check for set piece duties
+  const hasPenalties = player.penalties_order && player.penalties_order <= 2;
+  const hasCorners = player.corners_order && player.corners_order <= 2;
+  const hasFreeKicks = player.direct_freekicks_order && player.direct_freekicks_order <= 2;
+  const hasSetPieces = hasPenalties || hasCorners || hasFreeKicks;
+
   return (
     <div
       className={cn(
@@ -49,7 +59,7 @@ export function PlayerCard({ prediction, isCaptain, isViceCaptain, className }: 
       {/* Captain/Vice Captain Badge */}
       {(isCaptain || isViceCaptain) && (
         <div className={cn(
-          'absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold',
+          'absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold z-10',
           isCaptain ? 'gradient-gold text-accent-foreground' : 'bg-secondary text-secondary-foreground border border-border'
         )}>
           {isCaptain ? 'C' : 'V'}
@@ -79,6 +89,51 @@ export function PlayerCard({ prediction, isCaptain, isViceCaptain, className }: 
           <div className="text-xs text-muted-foreground">xPts</div>
         </div>
       </div>
+
+      {/* Set Piece Icons */}
+      {hasSetPieces && (
+        <TooltipProvider delayDuration={300}>
+          <div className="mt-2 flex items-center gap-1.5">
+            {hasPenalties && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="p-1 rounded bg-amber-500/10 text-amber-500">
+                    <Target className="w-3.5 h-3.5" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  <p>Penalty Taker (#{player.penalties_order})</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {hasCorners && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="p-1 rounded bg-blue-500/10 text-blue-500">
+                    <Flag className="w-3.5 h-3.5" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  <p>Corner Taker (#{player.corners_order})</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {hasFreeKicks && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="p-1 rounded bg-green-500/10 text-green-500">
+                    <CircleDot className="w-3.5 h-3.5" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  <p>Free Kick Taker (#{player.direct_freekicks_order})</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <span className="text-[10px] text-muted-foreground ml-1">Set Pieces</span>
+          </div>
+        </TooltipProvider>
+      )}
 
       {/* Stats Row */}
       <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-3 gap-2 text-center text-sm">

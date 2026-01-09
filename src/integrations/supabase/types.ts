@@ -426,7 +426,9 @@ export type Database = {
           assists: number | null
           bonus: number | null
           clean_sheets: number | null
+          corners_order: number | null
           created_at: string
+          direct_freekicks_order: number | null
           first_name: string
           form: number | null
           fpl_id: number
@@ -434,6 +436,7 @@ export type Database = {
           goals_scored: number | null
           id: number
           minutes: number | null
+          penalties_order: number | null
           photo: string | null
           position: string
           price: number
@@ -449,7 +452,9 @@ export type Database = {
           assists?: number | null
           bonus?: number | null
           clean_sheets?: number | null
+          corners_order?: number | null
           created_at?: string
+          direct_freekicks_order?: number | null
           first_name: string
           form?: number | null
           fpl_id: number
@@ -457,6 +462,7 @@ export type Database = {
           goals_scored?: number | null
           id?: number
           minutes?: number | null
+          penalties_order?: number | null
           photo?: string | null
           position: string
           price: number
@@ -472,7 +478,9 @@ export type Database = {
           assists?: number | null
           bonus?: number | null
           clean_sheets?: number | null
+          corners_order?: number | null
           created_at?: string
+          direct_freekicks_order?: number | null
           first_name?: string
           form?: number | null
           fpl_id?: number
@@ -480,6 +488,7 @@ export type Database = {
           goals_scored?: number | null
           id?: number
           minutes?: number | null
+          penalties_order?: number | null
           photo?: string | null
           position?: string
           price?: number

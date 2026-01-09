@@ -61,7 +61,7 @@ serve(async (req) => {
       4: 'FWD'
     };
 
-    // Process players
+    // Process players with set piece data
     const players = bootstrapData.elements.map((player: any) => ({
       fpl_id: player.id,
       first_name: player.first_name,
@@ -81,6 +81,10 @@ serve(async (req) => {
       selected_by_percent: parseFloat(player.selected_by_percent) || 0,
       status: player.status,
       photo: player.photo,
+      // Set piece data from FPL API
+      penalties_order: player.penalties_order || null,
+      corners_order: player.corners_and_indirect_freekicks_order || null,
+      direct_freekicks_order: player.direct_freekicks_order || null,
     }));
 
     console.log(`Upserting ${players.length} players...`);
