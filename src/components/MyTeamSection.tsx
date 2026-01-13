@@ -12,6 +12,9 @@ import { TeamComparison } from './TeamComparison';
 import { TeamSimulator } from './TeamSimulator';
 import { GameweekHistoryTable, type GameweekHistoryRow } from './GameweekHistoryTable';
 import { ShareTeamButton } from './ShareTeamButton';
+import { SmartTeamAnalyzer } from './SmartTeamAnalyzer';
+import { RiskProfileSelector, useRiskProfile } from './RiskProfileSelector';
+import { AIAssistant } from './AIAssistant';
 import {
   UserCircle,
   Download,
@@ -34,7 +37,7 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
   const [fplId, setFplId] = useState('');
   const [showOptimized, setShowOptimized] = useState(false);
   const teamContainerRef = useRef<HTMLDivElement>(null);
-
+  const [riskProfile, setRiskProfile] = useRiskProfile();
   const { data: userTeam, isLoading: loadingTeam } = useUserTeam();
   const { data: optimalTeam } = useOptimalTeam(gameweekId);
   const { data: gameweeks } = useGameweeks();
@@ -283,10 +286,27 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
       {/* Analysis results */}
       {hasAnalysis && (
         <>
+          {/* Risk Profile & Smart Analysis */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <RiskProfileSelector value={riskProfile} onChange={setRiskProfile} />
+            <SmartTeamAnalyzer
+              players={analysisData.user_players || []}
+              predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
+              captainId={userTeam.captain_id}
+            />
+          </div>
+
           {/* Team Comparison */}
           {teamComparison && (
             <TeamComparison comparison={teamComparison} />
           )}
+
+          {/* AI Assistant */}
+          <AIAssistant
+            teamData={userTeam}
+            gameweekId={gameweekId}
+            predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
+          />
 
           {/* Transfer Suggestions */}
           <TransferSuggestions

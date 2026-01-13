@@ -18,5 +18,8 @@ verify_jwt = false
 [functions.analyze-differentials]
 verify_jwt = false
 
+[functions.ai-fpl-assistant]
+verify_jwt = false
+
 [functions.fetch-mini-league]
 verify_jwt = false
