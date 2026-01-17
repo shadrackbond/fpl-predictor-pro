@@ -19,6 +19,7 @@ import { InjuredPlayersSection } from '@/components/InjuredPlayersSection';
 import { PriceWatch } from '@/components/PriceWatch';
 import { MiniLeagueRivals } from '@/components/MiniLeagueRivals';
 import { OnboardingTutorial } from '@/components/OnboardingTutorial';
+import { TopPlayersByPosition } from '@/components/TopPlayersByPosition';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useGameweeks,
@@ -48,7 +49,8 @@ import {
   Crown,
   LayoutGrid,
   DollarSign,
-  Swords
+  Swords,
+  Star
 } from 'lucide-react';
 
 const Index = () => {
@@ -337,6 +339,13 @@ const Index = () => {
                 <Swords className="w-4 h-4" />
                 Rivals
               </TabsTrigger>
+              <TabsTrigger 
+                value="topplayers" 
+                className="gap-2 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground transition-all"
+              >
+                <Star className="w-4 h-4" />
+                Top 10
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="myteam" className="animate-fade-in">
@@ -415,6 +424,10 @@ const Index = () => {
 
             <TabsContent value="rivals" className="animate-fade-in">
               <MiniLeagueRivals />
+            </TabsContent>
+
+            <TabsContent value="topplayers" className="animate-fade-in">
+              <TopPlayersByPosition />
             </TabsContent>
           </Tabs>
         )}

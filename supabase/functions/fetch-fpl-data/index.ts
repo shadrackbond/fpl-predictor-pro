@@ -61,7 +61,7 @@ serve(async (req) => {
       4: 'FWD'
     };
 
-    // Process players with set piece data
+    // Process players with set piece data and advanced stats
     const players = bootstrapData.elements.map((player: any) => ({
       fpl_id: player.id,
       first_name: player.first_name,
@@ -85,6 +85,18 @@ serve(async (req) => {
       penalties_order: player.penalties_order || null,
       corners_order: player.corners_and_indirect_freekicks_order || null,
       direct_freekicks_order: player.direct_freekicks_order || null,
+      // Advanced performance stats
+      expected_goals: parseFloat(player.expected_goals) || 0,
+      expected_assists: parseFloat(player.expected_assists) || 0,
+      expected_goal_involvement: parseFloat(player.expected_goal_involvements) || 0,
+      threat: parseFloat(player.threat) || 0,
+      creativity: parseFloat(player.creativity) || 0,
+      influence: parseFloat(player.influence) || 0,
+      ict_index: parseFloat(player.ict_index) || 0,
+      // Calculated from xG per 90 mins for shots estimation
+      shots: player.minutes > 0 ? Math.round((parseFloat(player.expected_goals) || 0) * 4 * (player.minutes / 90) * 10) / 10 : 0,
+      shots_in_box: player.minutes > 0 ? Math.round((parseFloat(player.expected_goals) || 0) * 3 * (player.minutes / 90) * 10) / 10 : 0,
+      key_passes: player.minutes > 0 ? Math.round((parseFloat(player.expected_assists) || 0) * 3 * (player.minutes / 90) * 10) / 10 : 0,
     }));
 
     console.log(`Upserting ${players.length} players...`);

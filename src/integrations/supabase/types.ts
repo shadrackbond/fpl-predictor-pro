@@ -428,13 +428,20 @@ export type Database = {
           clean_sheets: number | null
           corners_order: number | null
           created_at: string
+          creativity: number | null
           direct_freekicks_order: number | null
+          expected_assists: number | null
+          expected_goal_involvement: number | null
+          expected_goals: number | null
           first_name: string
           form: number | null
           fpl_id: number
           goals_conceded: number | null
           goals_scored: number | null
+          ict_index: number | null
           id: number
+          influence: number | null
+          key_passes: number | null
           minutes: number | null
           penalties_order: number | null
           photo: string | null
@@ -442,8 +449,11 @@ export type Database = {
           price: number
           second_name: string
           selected_by_percent: number | null
+          shots: number | null
+          shots_in_box: number | null
           status: string | null
           team_id: number | null
+          threat: number | null
           total_points: number | null
           updated_at: string
           web_name: string
@@ -454,13 +464,20 @@ export type Database = {
           clean_sheets?: number | null
           corners_order?: number | null
           created_at?: string
+          creativity?: number | null
           direct_freekicks_order?: number | null
+          expected_assists?: number | null
+          expected_goal_involvement?: number | null
+          expected_goals?: number | null
           first_name: string
           form?: number | null
           fpl_id: number
           goals_conceded?: number | null
           goals_scored?: number | null
+          ict_index?: number | null
           id?: number
+          influence?: number | null
+          key_passes?: number | null
           minutes?: number | null
           penalties_order?: number | null
           photo?: string | null
@@ -468,8 +485,11 @@ export type Database = {
           price: number
           second_name: string
           selected_by_percent?: number | null
+          shots?: number | null
+          shots_in_box?: number | null
           status?: string | null
           team_id?: number | null
+          threat?: number | null
           total_points?: number | null
           updated_at?: string
           web_name: string
@@ -480,13 +500,20 @@ export type Database = {
           clean_sheets?: number | null
           corners_order?: number | null
           created_at?: string
+          creativity?: number | null
           direct_freekicks_order?: number | null
+          expected_assists?: number | null
+          expected_goal_involvement?: number | null
+          expected_goals?: number | null
           first_name?: string
           form?: number | null
           fpl_id?: number
           goals_conceded?: number | null
           goals_scored?: number | null
+          ict_index?: number | null
           id?: number
+          influence?: number | null
+          key_passes?: number | null
           minutes?: number | null
           penalties_order?: number | null
           photo?: string | null
@@ -494,8 +521,11 @@ export type Database = {
           price?: number
           second_name?: string
           selected_by_percent?: number | null
+          shots?: number | null
+          shots_in_box?: number | null
           status?: string | null
           team_id?: number | null
+          threat?: number | null
           total_points?: number | null
           updated_at?: string
           web_name?: string
