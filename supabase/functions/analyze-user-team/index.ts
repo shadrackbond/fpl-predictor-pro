@@ -257,12 +257,12 @@ serve(async (req) => {
       console.warn('Failed to fetch chip history (non-blocking):', e);
     }
 
-    // Determine chips available from history
+    // Determine chips available from history (2 of each chip per season)
     const chipLimits: Record<string, number> = {
       wildcard: 2,
-      freehit: 1,
-      bboost: 1,
-      '3xc': 1,
+      freehit: 2,
+      bboost: 2,
+      '3xc': 2,
     };
 
     const chipNameMap: Record<string, string> = {
