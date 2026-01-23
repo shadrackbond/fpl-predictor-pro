@@ -149,7 +149,7 @@ Only return the JSON array, no other text.`;
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'google/gemini-3-flash-preview',
             messages: [
               { role: 'system', content: 'You are an FPL expert. Always respond with valid JSON arrays only.' },
               { role: 'user', content: prompt }
@@ -377,7 +377,7 @@ async function generateOptimalTeam(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-3-flash-preview',
         messages: [
           { 
             role: 'user', 
