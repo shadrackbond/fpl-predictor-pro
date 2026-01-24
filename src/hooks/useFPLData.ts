@@ -125,21 +125,41 @@ export function useGeneratePredictions() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (gameweek_id: number) => {
+    mutationFn: async ({ gameweek_id, force_refresh = false }: { gameweek_id: number; force_refresh?: boolean }) => {
       const response = await supabase.functions.invoke('generate-predictions', {
-        body: { gameweek_id },
+        body: { gameweek_id, force_refresh },
       });
       if (response.error) throw response.error;
       return response.data;
     },
-    onSuccess: (_, gameweek_id) => {
+    onSuccess: (data, { gameweek_id }) => {
       queryClient.invalidateQueries({ queryKey: ['predictions', gameweek_id] });
       queryClient.invalidateQueries({ queryKey: ['optimal-team', gameweek_id] });
-      toast.success('Predictions generated successfully!');
+      queryClient.invalidateQueries({ queryKey: ['prediction-status', gameweek_id] });
+      
+      if (data?.cached) {
+        toast.success('Using cached predictions (updated ' + formatRelativeTime(data.completed_at) + ')');
+      } else if (data?.status === 'processing') {
+        toast.info('Predictions are being generated...');
+      } else {
+        toast.success('Predictions generated successfully!');
+      }
     },
     onError: (error) => {
       console.error('Failed to generate predictions:', error);
       toast.error('Failed to generate predictions');
     },
   });
+}
+
+function formatRelativeTime(dateString: string): string {
+  if (!dateString) return 'recently';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  
+  if (diffMins < 60) return `${diffMins}m ago`;
+  return `${diffHours}h ago`;
 }

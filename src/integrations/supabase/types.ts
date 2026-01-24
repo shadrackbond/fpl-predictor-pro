@@ -587,6 +587,48 @@ export type Database = {
           },
         ]
       }
+      prediction_sync_status: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
+          gameweek_id: number
+          id: string
+          last_player_index: number | null
+          started_at: string | null
+          status: string | null
+          total_players: number | null
+          total_processed: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          gameweek_id: number
+          id?: string
+          last_player_index?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_players?: number | null
+          total_processed?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          gameweek_id?: number
+          id?: string
+          last_player_index?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_players?: number | null
+          total_processed?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       price_changes: {
         Row: {
           change_date: string | null
