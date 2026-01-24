@@ -12,13 +12,28 @@ const requestSchema = z.object({
   gameweek_id: z.number({
     required_error: 'gameweek_id is required',
     invalid_type_error: 'gameweek_id must be a number'
-  }).int({ message: 'gameweek_id must be an integer' }).positive({ message: 'gameweek_id must be positive' }).max(100, { message: 'gameweek_id must be 100 or less' })
+  }).int({ message: 'gameweek_id must be an integer' }).positive({ message: 'gameweek_id must be positive' }).max(100, { message: 'gameweek_id must be 100 or less' }),
+  force_refresh: z.boolean().optional().default(false)
 });
+
+// Cache duration in hours
+const CACHE_HOURS = 6;
+
+// Batch size for player processing - increased from 20 to 50 to reduce AI calls
+const BATCH_SIZE = 50;
+
+// Delay between AI calls in ms to avoid rate limits
+const CALL_DELAY_MS = 300;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     const body = await req.json();
@@ -36,14 +51,64 @@ serve(async (req) => {
       });
     }
     
-    const { gameweek_id } = parseResult.data;
+    const { gameweek_id, force_refresh } = parseResult.data;
     
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log(`Generating predictions for gameweek: ${gameweek_id}, force_refresh: ${force_refresh}`);
 
-    console.log(`Generating predictions for gameweek: ${gameweek_id}`);
+    // Check for cached predictions (skip if force refresh)
+    if (!force_refresh) {
+      const { data: existingSync } = await supabase
+        .from('prediction_sync_status')
+        .select('*')
+        .eq('gameweek_id', gameweek_id)
+        .single();
+
+      if (existingSync?.status === 'completed' && existingSync.completed_at) {
+        const completedTime = new Date(existingSync.completed_at).getTime();
+        const cacheExpiry = CACHE_HOURS * 60 * 60 * 1000;
+        const now = Date.now();
+
+        if (now - completedTime < cacheExpiry) {
+          console.log(`Using cached predictions from ${existingSync.completed_at}`);
+          
+          // Return existing predictions
+          const { data: optimalTeam } = await supabase
+            .from('optimal_teams')
+            .select('*')
+            .eq('gameweek_id', gameweek_id)
+            .maybeSingle();
+
+          return new Response(JSON.stringify({
+            success: true,
+            cached: true,
+            completed_at: existingSync.completed_at,
+            predictions_count: existingSync.total_processed,
+            optimal_team: optimalTeam,
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // Check if already processing
+      if (existingSync?.status === 'processing') {
+        const startedTime = new Date(existingSync.started_at).getTime();
+        const processingTimeout = 10 * 60 * 1000; // 10 minutes
+        
+        if (Date.now() - startedTime < processingTimeout) {
+          return new Response(JSON.stringify({
+            success: true,
+            status: 'processing',
+            progress: existingSync.total_players > 0 
+              ? Math.round((existingSync.total_processed / existingSync.total_players) * 100)
+              : 0,
+            message: 'Predictions are currently being generated'
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    }
 
     // Get gameweek info
     const { data: gameweek } = await supabase
@@ -64,6 +129,10 @@ serve(async (req) => {
         teams:team_id (name, short_name, strength_overall)
       `)
       .order('total_points', { ascending: false });
+
+    if (!players || players.length === 0) {
+      throw new Error('No players found');
+    }
 
     // Get fixtures for this gameweek
     const { data: fixtures } = await supabase
@@ -90,37 +159,155 @@ serve(async (req) => {
       });
     });
 
-    // Process players in batches for AI analysis
-    const batchSize = 20;
-    const predictions: any[] = [];
-    
-    for (let i = 0; i < (players?.length || 0); i += batchSize) {
-      const batch = players!.slice(i, i + batchSize);
-      
-      const playerData = batch.map((p: any) => {
-        const fixture = teamFixtures.get(p.team_id);
-        return {
-          id: p.id,
-          name: p.web_name,
-          position: p.position,
-          team: p.teams?.short_name,
-          price: p.price,
-          form: p.form,
-          total_points: p.total_points,
-          minutes: p.minutes,
-          goals: p.goals_scored,
-          assists: p.assists,
-          clean_sheets: p.clean_sheets,
-          bonus: p.bonus,
-          selected_by: p.selected_by_percent,
-          status: p.status,
-          fixture_difficulty: fixture?.difficulty || 3,
-          opponent: fixture?.opponent || 'TBD',
-          is_home: fixture?.isHome ?? true,
-        };
-      });
+    // Initialize or update sync status
+    await supabase
+      .from('prediction_sync_status')
+      .upsert({
+        gameweek_id,
+        status: 'processing',
+        total_players: players.length,
+        total_processed: 0,
+        last_player_index: 0,
+        started_at: new Date().toISOString(),
+        completed_at: null,
+        error_message: null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'gameweek_id' });
 
-      const prompt = `You are an FPL (Fantasy Premier League) expert analyst. Analyze these players and predict their expected points for ${gameweek.name}.
+    // Process players in batches
+    const predictions: any[] = [];
+    let processedCount = 0;
+    
+    for (let i = 0; i < players.length; i += BATCH_SIZE) {
+      const batch = players.slice(i, i + BATCH_SIZE);
+      const batchPredictions = await processBatch(
+        batch, 
+        teamFixtures, 
+        gameweek, 
+        gameweek_id, 
+        lovableApiKey
+      );
+      
+      predictions.push(...batchPredictions);
+      processedCount += batch.length;
+      
+      // Update progress
+      await supabase
+        .from('prediction_sync_status')
+        .update({
+          total_processed: processedCount,
+          last_player_index: i + batch.length,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('gameweek_id', gameweek_id);
+      
+      // Save predictions incrementally to avoid data loss
+      if (batchPredictions.length > 0) {
+        const { error: predError } = await supabase
+          .from('player_predictions')
+          .upsert(batchPredictions, { onConflict: 'player_id,gameweek_id' });
+        
+        if (predError) {
+          console.error('Batch predictions upsert error:', predError);
+        }
+      }
+
+      // Add delay between batches to avoid rate limits
+      if (i + BATCH_SIZE < players.length) {
+        await delay(CALL_DELAY_MS);
+      }
+    }
+
+    console.log(`Processed ${predictions.length} predictions`);
+
+    // Generate optimal team (without AI call to save tokens)
+    const optimalTeam = await generateOptimalTeam(supabase, gameweek_id, predictions);
+
+    // Mark as completed
+    await supabase
+      .from('prediction_sync_status')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('gameweek_id', gameweek_id);
+
+    return new Response(JSON.stringify({
+      success: true,
+      cached: false,
+      predictions_count: predictions.length,
+      optimal_team: optimalTeam,
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Error in generate-predictions:', error);
+    
+    // Update sync status with error
+    try {
+      const body = await req.clone().json();
+      if (body.gameweek_id) {
+        await supabase
+          .from('prediction_sync_status')
+          .update({
+            status: 'failed',
+            error_message: error instanceof Error ? error.message : 'Unknown error',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('gameweek_id', body.gameweek_id);
+      }
+    } catch (e) {
+      // Ignore errors updating status
+    }
+
+    return new Response(JSON.stringify({ 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function processBatch(
+  batch: any[],
+  teamFixtures: Map<number, { opponent: string; difficulty: number; isHome: boolean }>,
+  gameweek: any,
+  gameweek_id: number,
+  apiKey: string
+): Promise<any[]> {
+  const playerData = batch.map((p: any) => {
+    const fixture = teamFixtures.get(p.team_id);
+    return {
+      id: p.id,
+      name: p.web_name,
+      position: p.position,
+      team: p.teams?.short_name,
+      price: p.price,
+      form: p.form,
+      total_points: p.total_points,
+      minutes: p.minutes,
+      goals: p.goals_scored,
+      assists: p.assists,
+      clean_sheets: p.clean_sheets,
+      bonus: p.bonus,
+      selected_by: p.selected_by_percent,
+      status: p.status,
+      xG: p.expected_goals,
+      xA: p.expected_assists,
+      fixture_difficulty: fixture?.difficulty || 3,
+      opponent: fixture?.opponent || 'TBD',
+      is_home: fixture?.isHome ?? true,
+    };
+  });
+
+  const prompt = `You are an FPL (Fantasy Premier League) expert analyst. Analyze these players and predict their expected points for ${gameweek.name}.
 
 Consider these factors:
 1. Recent form (higher form = better recent performances)
@@ -129,7 +316,8 @@ Consider these factors:
 4. Position (GKP can get clean sheet points, attackers get goal/assist points)
 5. Minutes played (low minutes = rotation risk)
 6. Status (a=available, d=doubtful, i=injured)
-7. Bonus point potential
+7. Expected goals (xG) and expected assists (xA) for attackers
+8. Bonus point potential
 
 Players data:
 ${JSON.stringify(playerData, null, 2)}
@@ -141,127 +329,113 @@ Return a JSON array with predictions for each player. Each object must have:
 
 Only return the JSON array, no other text.`;
 
-      try {
-        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-3-flash-preview',
-            messages: [
-              { role: 'system', content: 'You are an FPL expert. Always respond with valid JSON arrays only.' },
-              { role: 'user', content: prompt }
-            ],
-          }),
-        });
-
-        if (!aiResponse.ok) {
-          console.error(`AI API error: ${aiResponse.status}`);
-          // Fallback to basic prediction
-          batch.forEach((p: any) => {
-            const fixture = teamFixtures.get(p.team_id);
-            const basePts = p.form * 0.5 + (p.total_points / Math.max(1, p.minutes / 90)) * 0.3;
-            const difficultyFactor = (6 - (fixture?.difficulty || 3)) / 5;
-            predictions.push({
-              player_id: p.id,
-              gameweek_id,
-              predicted_points: Math.round((basePts * difficultyFactor + 2) * 10) / 10,
-              fixture_difficulty: fixture?.difficulty || 3,
-              form_factor: p.form / 10,
-              ai_analysis: `Form: ${p.form}, Fixture difficulty: ${fixture?.difficulty || 3}`,
-            });
-          });
-          continue;
-        }
-
-        const aiData = await aiResponse.json();
-        const content = aiData.choices?.[0]?.message?.content || '[]';
-        
-        // Parse AI response
-        let aiPredictions: any[] = [];
-        try {
-          const jsonMatch = content.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            aiPredictions = JSON.parse(jsonMatch[0]);
-          }
-        } catch (parseError) {
-          console.error('Error parsing AI response:', parseError);
-        }
-
-        // Map AI predictions back to players
-        batch.forEach((p: any) => {
-          const fixture = teamFixtures.get(p.team_id);
-          const aiPred = aiPredictions.find((pred: any) => pred.id === p.id);
-          
-          if (aiPred) {
-            predictions.push({
-              player_id: p.id,
-              gameweek_id,
-              predicted_points: Math.max(0, Math.min(20, aiPred.predicted_points || 2)),
-              fixture_difficulty: fixture?.difficulty || 3,
-              form_factor: p.form / 10,
-              ai_analysis: aiPred.brief_analysis || '',
-            });
-          } else {
-            // Fallback calculation
-            const basePts = p.form * 0.5 + 2;
-            const difficultyFactor = (6 - (fixture?.difficulty || 3)) / 5;
-            predictions.push({
-              player_id: p.id,
-              gameweek_id,
-              predicted_points: Math.round(basePts * difficultyFactor * 10) / 10,
-              fixture_difficulty: fixture?.difficulty || 3,
-              form_factor: p.form / 10,
-              ai_analysis: 'Basic prediction based on form and fixture.',
-            });
-          }
-        });
-
-      } catch (batchError) {
-        console.error('Batch processing error:', batchError);
-      }
-    }
-
-    // Upsert predictions
-    console.log(`Upserting ${predictions.length} predictions...`);
-    const { error: predError } = await supabase
-      .from('player_predictions')
-      .upsert(predictions, { onConflict: 'player_id,gameweek_id' });
-
-    if (predError) {
-      console.error('Predictions upsert error:', predError);
-      throw predError;
-    }
-
-    // Generate optimal team
-    const optimalTeam = await generateOptimalTeam(supabase, gameweek_id, predictions, lovableApiKey);
-
-    return new Response(JSON.stringify({
-      success: true,
-      predictions_count: predictions.length,
-      optimal_team: optimalTeam,
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  try {
+    // Use cheaper model for bulk predictions to save costs
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash-lite', // Cheaper model for bulk predictions
+        messages: [
+          { role: 'system', content: 'You are an FPL expert. Always respond with valid JSON arrays only.' },
+          { role: 'user', content: prompt }
+        ],
+      }),
     });
 
-  } catch (error) {
-    console.error('Error in generate-predictions:', error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    if (!aiResponse.ok) {
+      const status = aiResponse.status;
+      console.error(`AI API error: ${status}`);
+      
+      // Handle rate limits and payment errors
+      if (status === 429 || status === 402) {
+        console.log(`Rate limited or payment required, using fallback predictions`);
+      }
+      
+      // Fallback to basic prediction
+      return batch.map((p: any) => {
+        const fixture = teamFixtures.get(p.team_id);
+        const basePts = p.form * 0.5 + (p.total_points / Math.max(1, p.minutes / 90)) * 0.3;
+        const difficultyFactor = (6 - (fixture?.difficulty || 3)) / 5;
+        return {
+          player_id: p.id,
+          gameweek_id,
+          predicted_points: Math.round((basePts * difficultyFactor + 2) * 10) / 10,
+          fixture_difficulty: fixture?.difficulty || 3,
+          form_factor: p.form / 10,
+          ai_analysis: `Form: ${p.form}, Fixture difficulty: ${fixture?.difficulty || 3} (fallback prediction)`,
+        };
+      });
+    }
+
+    const aiData = await aiResponse.json();
+    const content = aiData.choices?.[0]?.message?.content || '[]';
+    
+    // Parse AI response
+    let aiPredictions: any[] = [];
+    try {
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        aiPredictions = JSON.parse(jsonMatch[0]);
+      }
+    } catch (parseError) {
+      console.error('Error parsing AI response:', parseError);
+    }
+
+    // Map AI predictions back to players
+    return batch.map((p: any) => {
+      const fixture = teamFixtures.get(p.team_id);
+      const aiPred = aiPredictions.find((pred: any) => pred.id === p.id);
+      
+      if (aiPred) {
+        return {
+          player_id: p.id,
+          gameweek_id,
+          predicted_points: Math.max(0, Math.min(20, aiPred.predicted_points || 2)),
+          fixture_difficulty: fixture?.difficulty || 3,
+          form_factor: p.form / 10,
+          ai_analysis: aiPred.brief_analysis || '',
+        };
+      } else {
+        // Fallback calculation
+        const basePts = p.form * 0.5 + 2;
+        const difficultyFactor = (6 - (fixture?.difficulty || 3)) / 5;
+        return {
+          player_id: p.id,
+          gameweek_id,
+          predicted_points: Math.round(basePts * difficultyFactor * 10) / 10,
+          fixture_difficulty: fixture?.difficulty || 3,
+          form_factor: p.form / 10,
+          ai_analysis: 'Basic prediction based on form and fixture.',
+        };
+      }
+    });
+
+  } catch (batchError) {
+    console.error('Batch processing error:', batchError);
+    
+    // Return fallback predictions for the entire batch
+    return batch.map((p: any) => {
+      const fixture = teamFixtures.get(p.team_id);
+      return {
+        player_id: p.id,
+        gameweek_id,
+        predicted_points: Math.max(2, p.form * 0.6),
+        fixture_difficulty: fixture?.difficulty || 3,
+        form_factor: p.form / 10,
+        ai_analysis: 'Fallback prediction due to processing error.',
+      };
     });
   }
-});
+}
 
 async function generateOptimalTeam(
   supabase: any, 
   gameweek_id: number, 
-  predictions: any[],
-  apiKey: string
+  predictions: any[]
 ) {
   // Get player details
   const { data: players } = await supabase
@@ -323,7 +497,6 @@ async function generateOptimalTeam(
   }
 
   // Select starting XI (best 11 with valid formation)
-  // Formation: 1 GKP + at least 3 DEF + at least 2 MID + at least 1 FWD
   const squadByPos: Record<string, any[]> = { GKP: [], DEF: [], MID: [], FWD: [] };
   squad.forEach(p => squadByPos[p.position]?.push(p));
 
@@ -367,37 +540,9 @@ async function generateOptimalTeam(
   // Calculate team rating (based on historical context, max realistic is ~150 pts)
   const rating = Math.min(100, Math.round((totalPredicted / 100) * 100));
 
-  // Generate AI analysis for the team
-  let analysis = '';
-  try {
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
-        messages: [
-          { 
-            role: 'user', 
-            content: `Analyze this FPL optimal team selection in 2-3 sentences:
-Formation: ${formation}
-Captain: ${captain?.web_name}
-Total predicted points: ${totalPredicted.toFixed(1)}
-Top players: ${sortedXI.slice(0, 5).map((p: any) => `${p.web_name} (${p.predicted_points.toFixed(1)} pts)`).join(', ')}` 
-          }
-        ],
-      }),
-    });
-
-    if (aiResponse.ok) {
-      const aiData = await aiResponse.json();
-      analysis = aiData.choices?.[0]?.message?.content || '';
-    }
-  } catch (e) {
-    console.error('Analysis generation error:', e);
-  }
+  // Generate template-based analysis (no AI call to save tokens)
+  const topPlayers = sortedXI.slice(0, 3).map(p => p.web_name).join(', ');
+  const analysis = `Optimal team for ${formation} formation. Captain: ${captain?.web_name} with ${captain?.predicted_points?.toFixed(1)} predicted points. Key players: ${topPlayers}. Total predicted: ${totalPredicted.toFixed(1)} points.`;
 
   // Save optimal team
   const optimalTeam = {

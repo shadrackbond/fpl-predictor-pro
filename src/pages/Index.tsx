@@ -29,6 +29,7 @@ import {
   useFetchFPLData,
   useGeneratePredictions,
 } from '@/hooks/useFPLData';
+import { usePredictionStatus, formatTimeSince } from '@/hooks/usePredictionStatus';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
 import { 
   RefreshCw, 
@@ -50,8 +51,11 @@ import {
   LayoutGrid,
   DollarSign,
   Swords,
-  Star
+  Star,
+  Clock,
+  RotateCcw
 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 const Index = () => {
   const [selectedGameweekId, setSelectedGameweekId] = useState<number | null>(null);
@@ -61,7 +65,7 @@ const Index = () => {
   const { data: optimalTeam, isLoading: loadingTeam } = useOptimalTeam(selectedGameweekId);
   const { data: fixtures, isLoading: loadingFixtures } = useFixtures(selectedGameweekId);
   const { data: history } = usePredictionHistory();
-
+  const { data: predictionStatus } = usePredictionStatus(selectedGameweekId);
   const fetchFPLData = useFetchFPLData();
   const generatePredictions = useGeneratePredictions();
 
@@ -78,9 +82,9 @@ const Index = () => {
     fetchFPLData.mutate();
   };
 
-  const handleGeneratePredictions = () => {
+  const handleGeneratePredictions = (forceRefresh = false) => {
     if (selectedGameweekId) {
-      generatePredictions.mutate(selectedGameweekId);
+      generatePredictions.mutate({ gameweek_id: selectedGameweekId, force_refresh: forceRefresh });
     }
   };
 
@@ -136,7 +140,7 @@ const Index = () => {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <Button
                   variant="outline"
                   size="lg"
@@ -150,15 +154,58 @@ const Index = () => {
                 <Button
                   variant="default"
                   size="lg"
-                  onClick={handleGeneratePredictions}
-                  disabled={isGenerating || !selectedGameweekId}
+                  onClick={() => handleGeneratePredictions(false)}
+                  disabled={isGenerating || !selectedGameweekId || predictionStatus?.status === 'processing'}
                   className="gap-2 gradient-gold text-accent-foreground font-semibold shadow-lg hover:shadow-accent/25 transition-shadow"
                 >
-                  <Sparkles className={`w-4 h-4 ${isGenerating ? 'animate-pulse' : ''}`} />
-                  {isGenerating ? 'Generating...' : 'Generate Predictions'}
+                  <Sparkles className={`w-4 h-4 ${isGenerating || predictionStatus?.status === 'processing' ? 'animate-pulse' : ''}`} />
+                  {isGenerating || predictionStatus?.status === 'processing' ? 'Generating...' : 'Generate Predictions'}
                   <ChevronRight className="w-4 h-4" />
                 </Button>
+                {predictionStatus?.status === 'completed' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleGeneratePredictions(true)}
+                    disabled={isGenerating}
+                    className="gap-1.5 text-muted-foreground hover:text-foreground"
+                    title="Force regenerate predictions (ignores cache)"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Force Refresh
+                  </Button>
+                )}
               </div>
+              
+              {/* Prediction Status Indicator */}
+              {predictionStatus && (
+                <div className="flex items-center gap-3 text-sm">
+                  {predictionStatus.status === 'processing' && (
+                    <>
+                      <Progress 
+                        value={predictionStatus.total_players > 0 
+                          ? (predictionStatus.total_processed / predictionStatus.total_players) * 100 
+                          : 0} 
+                        className="w-32 h-2"
+                      />
+                      <span className="text-muted-foreground">
+                        {predictionStatus.total_processed}/{predictionStatus.total_players} players
+                      </span>
+                    </>
+                  )}
+                  {predictionStatus.status === 'completed' && predictionStatus.completed_at && (
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <Clock className="w-3.5 h-3.5" />
+                      Updated {formatTimeSince(predictionStatus.completed_at)}
+                    </span>
+                  )}
+                  {predictionStatus.status === 'failed' && (
+                    <span className="text-destructive text-xs">
+                      Generation failed - try again
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Quick Stats & User Menu */}
