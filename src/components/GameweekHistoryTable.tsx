@@ -119,9 +119,9 @@ export function GameweekHistoryTable({ history }: GameweekHistoryTableProps) {
                       <span className="text-muted-foreground">0</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">{row.cumulative_points.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">{row.cumulative_points?.toLocaleString() ?? '—'}</TableCell>
                   <TableCell className="text-right text-muted-foreground">
-                    {row.rank.toLocaleString()}
+                    {row.rank?.toLocaleString() ?? '—'}
                   </TableCell>
                 </TableRow>
               ))}
