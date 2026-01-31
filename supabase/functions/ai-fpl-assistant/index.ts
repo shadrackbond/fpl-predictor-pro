@@ -152,7 +152,7 @@ RESPONSE FORMAT:
       body: JSON.stringify({
         model: 'google/gemini-3-flash-preview',
         messages,
-        max_tokens: 500,
+        max_tokens: 600,
       }),
     });
 
