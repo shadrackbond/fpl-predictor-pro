@@ -517,44 +517,8 @@ IMPORTANT Analysis Guidelines:
 - For Free Hit: recommend during blank/double gameweeks
 - suggested_lineup should be the 11 players (by ID) who will score the most points this gameweek`;
 
-    let aiResult: any = null;
-    try {
-      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${lovableApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            { role: 'system', content: 'You are an FPL expert analyst. Return only valid JSON.' },
-            { role: 'user', content: aiPrompt }
-          ],
-        }),
-      });
-
-      if (!aiResponse.ok) {
-        const errorText = await aiResponse.text();
-        console.error(`AI API error: ${aiResponse.status}`, errorText);
-        // Provide fallback analysis
-        aiResult = generateFallbackAnalysis(userPlayerPreds, otherPlayerPreds, freeTransfers, chipsAvailable);
-      } else {
-        const aiData = await aiResponse.json();
-        const content = aiData.choices?.[0]?.message?.content || '{}';
-
-        // Parse JSON from AI response
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          aiResult = JSON.parse(jsonMatch[0]);
-        } else {
-          aiResult = generateFallbackAnalysis(userPlayerPreds, otherPlayerPreds, freeTransfers, chipsAvailable);
-        }
-      }
-    } catch (aiError) {
-      console.error('AI analysis error:', aiError);
-      aiResult = generateFallbackAnalysis(userPlayerPreds, otherPlayerPreds, freeTransfers, chipsAvailable);
-    }
+    // Use rule-based analysis (no AI call) to optimize costs
+    let aiResult: any = generateFallbackAnalysis(userPlayerPreds, otherPlayerPreds, freeTransfers, chipsAvailable);
 
     // Normalize team comparison so numbers are stable and match the Optimal Team page
     const predictedByPlayerId = new Map<number, number>();
