@@ -156,7 +156,7 @@ export default function Landing() {
               Join thousands of FPL managers using AI to make smarter decisions every gameweek.
             </p>
             <Link to="/auth">
-              <Button size="lg" className="gap-2 gradient-gold text-accent-foreground font-semibold shadow-lg">
+              <Button size="lg" className="gap-2 gradient-primary text-primary-foreground font-semibold shadow-lg">
                 Start Winning Today
                 <ArrowRight className="w-4 h-4" />
               </Button>

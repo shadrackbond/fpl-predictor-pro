@@ -89,6 +89,7 @@ const Index = () => {
   };
 
   const isGenerating = generatePredictions.isPending;
+  const isProcessing = predictionStatus?.status === 'processing';
   const isFetching = fetchFPLData.isPending;
   const hasData = gameweeks && gameweeks.length > 0;
 
@@ -155,11 +156,11 @@ const Index = () => {
                   variant="default"
                   size="lg"
                   onClick={() => handleGeneratePredictions(false)}
-                  disabled={isGenerating || !selectedGameweekId || predictionStatus?.status === 'processing'}
-                  className="gap-2 gradient-gold text-accent-foreground font-semibold shadow-lg hover:shadow-accent/25 transition-shadow"
+                  disabled={isGenerating || !selectedGameweekId || isProcessing}
+                  className="gap-2 gradient-primary text-primary-foreground font-semibold shadow-lg hover:shadow-primary/25 transition-shadow"
                 >
-                  <Sparkles className={`w-4 h-4 ${isGenerating || predictionStatus?.status === 'processing' ? 'animate-pulse' : ''}`} />
-                  {isGenerating || predictionStatus?.status === 'processing' ? 'Generating...' : 'Generate Predictions'}
+                  <Sparkles className={`w-4 h-4 ${isGenerating || isProcessing ? 'animate-pulse' : ''}`} />
+                  {isGenerating ? 'Starting...' : isProcessing ? 'Generating...' : 'Generate Predictions'}
                   <ChevronRight className="w-4 h-4" />
                 </Button>
                 {predictionStatus?.status === 'completed' && (
@@ -332,7 +333,7 @@ const Index = () => {
               </TabsTrigger>
               <TabsTrigger 
                 value="differentials" 
-                className="gap-2 data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all"
+                className="gap-2 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground transition-all"
               >
                 <Flame className="w-4 h-4" />
                 Differentials
@@ -367,7 +368,7 @@ const Index = () => {
               </TabsTrigger>
               <TabsTrigger 
                 value="injuries" 
-                className="gap-2 data-[state=active]:bg-red-500 data-[state=active]:text-white transition-all"
+                className="gap-2 data-[state=active]:bg-destructive data-[state=active]:text-destructive-foreground transition-all"
               >
                 <Bandage className="w-4 h-4" />
                 Injuries
