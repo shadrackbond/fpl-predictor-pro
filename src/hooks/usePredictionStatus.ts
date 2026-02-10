@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useEffect, useRef } from 'react';
 
 export interface PredictionSyncStatus {
   id: string;
@@ -16,7 +17,10 @@ export interface PredictionSyncStatus {
 }
 
 export function usePredictionStatus(gameweekId: number | null) {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const prevStatusRef = useRef<string | null>(null);
+
+  const query = useQuery({
     queryKey: ['prediction-status', gameweekId],
     queryFn: async (): Promise<PredictionSyncStatus | null> => {
       if (!gameweekId) return null;
@@ -36,11 +40,23 @@ export function usePredictionStatus(gameweekId: number | null) {
     },
     enabled: !!gameweekId,
     refetchInterval: (query) => {
-      // Poll every 2 seconds while processing
       const data = query.state.data as PredictionSyncStatus | null;
-      return data?.status === 'processing' ? 2000 : false;
+      // Poll every 3 seconds while processing
+      return data?.status === 'processing' ? 3000 : false;
     },
   });
+
+  // When status transitions from processing to completed, refresh predictions
+  useEffect(() => {
+    const currentStatus = query.data?.status || null;
+    if (prevStatusRef.current === 'processing' && currentStatus === 'completed' && gameweekId) {
+      queryClient.invalidateQueries({ queryKey: ['predictions', gameweekId] });
+      queryClient.invalidateQueries({ queryKey: ['optimal-team', gameweekId] });
+    }
+    prevStatusRef.current = currentStatus;
+  }, [query.data?.status, gameweekId, queryClient]);
+
+  return query;
 }
 
 export function formatTimeSince(dateString: string | null): string {

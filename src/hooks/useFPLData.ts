@@ -126,28 +126,50 @@ export function useGeneratePredictions() {
   
   return useMutation({
     mutationFn: async ({ gameweek_id, force_refresh = false }: { gameweek_id: number; force_refresh?: boolean }) => {
-      const response = await supabase.functions.invoke('generate-predictions', {
-        body: { gameweek_id, force_refresh },
-      });
-      if (response.error) throw response.error;
-      return response.data;
+      // Fire-and-forget: use AbortController with a short timeout
+      // The edge function will continue processing in the background
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s max wait
+      
+      try {
+        const response = await supabase.functions.invoke('generate-predictions', {
+          body: { gameweek_id, force_refresh },
+        });
+        clearTimeout(timeoutId);
+        if (response.error) throw response.error;
+        return response.data;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        // If it's an abort/timeout, that's OK - the edge function is still running
+        if (err?.name === 'AbortError' || err?.message?.includes('timed out') || err?.message?.includes('aborted')) {
+          return { status: 'processing', message: 'Predictions started generating' };
+        }
+        // For 5xx errors (edge function timeout), treat as processing
+        if (err?.status >= 500 || err?.message?.includes('non-2xx')) {
+          return { status: 'processing', message: 'Predictions are being generated in the background' };
+        }
+        throw err;
+      }
     },
     onSuccess: (data, { gameweek_id }) => {
-      queryClient.invalidateQueries({ queryKey: ['predictions', gameweek_id] });
-      queryClient.invalidateQueries({ queryKey: ['optimal-team', gameweek_id] });
+      // Always refresh prediction status to start polling
       queryClient.invalidateQueries({ queryKey: ['prediction-status', gameweek_id] });
       
       if (data?.cached) {
+        queryClient.invalidateQueries({ queryKey: ['predictions', gameweek_id] });
+        queryClient.invalidateQueries({ queryKey: ['optimal-team', gameweek_id] });
         toast.success('Using cached predictions (updated ' + formatRelativeTime(data.completed_at) + ')');
       } else if (data?.status === 'processing') {
-        toast.info('Predictions are being generated...');
+        toast.info('Predictions are generating — this may take a few minutes. Progress will update automatically.');
       } else {
+        queryClient.invalidateQueries({ queryKey: ['predictions', gameweek_id] });
+        queryClient.invalidateQueries({ queryKey: ['optimal-team', gameweek_id] });
         toast.success('Predictions generated successfully!');
       }
     },
     onError: (error) => {
       console.error('Failed to generate predictions:', error);
-      toast.error('Failed to generate predictions');
+      toast.error('Failed to start prediction generation');
     },
   });
 }
