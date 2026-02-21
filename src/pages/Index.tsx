@@ -3,16 +3,23 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { UserMenu } from '@/components/UserMenu';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { GameweekSelector } from '@/components/GameweekSelector';
 import { OptimalTeamView } from '@/components/OptimalTeamView';
 import { PredictionsTable } from '@/components/PredictionsTable';
 import { FixturesOverview } from '@/components/FixturesOverview';
+import { FixtureTicker } from '@/components/FixtureTicker';
+import { CaptainPicker } from '@/components/CaptainPicker';
 import { MyTeamSection } from '@/components/MyTeamSection';
 import { AccuracyDashboard } from '@/components/AccuracyDashboard';
 import { ResultsSection } from '@/components/ResultsSection';
 import { DifferentialsDashboard } from '@/components/DifferentialsDashboard';
 import { NewsFeed } from '@/components/NewsFeed';
 import { InjuredPlayersSection } from '@/components/InjuredPlayersSection';
+import { PriceWatch } from '@/components/PriceWatch';
+import { MiniLeagueRivals } from '@/components/MiniLeagueRivals';
+import { OnboardingTutorial } from '@/components/OnboardingTutorial';
+import { TopPlayersByPosition } from '@/components/TopPlayersByPosition';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useGameweeks,
@@ -22,6 +29,7 @@ import {
   useFetchFPLData,
   useGeneratePredictions,
 } from '@/hooks/useFPLData';
+import { usePredictionStatus, formatTimeSince } from '@/hooks/usePredictionStatus';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
 import { 
   RefreshCw, 
@@ -38,8 +46,16 @@ import {
   BarChart3,
   Flame,
   Newspaper,
-  Bandage
+  Bandage,
+  Crown,
+  LayoutGrid,
+  DollarSign,
+  Swords,
+  Star,
+  Clock,
+  RotateCcw
 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 const Index = () => {
   const [selectedGameweekId, setSelectedGameweekId] = useState<number | null>(null);
@@ -49,7 +65,7 @@ const Index = () => {
   const { data: optimalTeam, isLoading: loadingTeam } = useOptimalTeam(selectedGameweekId);
   const { data: fixtures, isLoading: loadingFixtures } = useFixtures(selectedGameweekId);
   const { data: history } = usePredictionHistory();
-
+  const { data: predictionStatus } = usePredictionStatus(selectedGameweekId);
   const fetchFPLData = useFetchFPLData();
   const generatePredictions = useGeneratePredictions();
 
@@ -66,13 +82,14 @@ const Index = () => {
     fetchFPLData.mutate();
   };
 
-  const handleGeneratePredictions = () => {
+  const handleGeneratePredictions = (forceRefresh = false) => {
     if (selectedGameweekId) {
-      generatePredictions.mutate(selectedGameweekId);
+      generatePredictions.mutate({ gameweek_id: selectedGameweekId, force_refresh: forceRefresh });
     }
   };
 
   const isGenerating = generatePredictions.isPending;
+  const isProcessing = predictionStatus?.status === 'processing';
   const isFetching = fetchFPLData.isPending;
   const hasData = gameweeks && gameweeks.length > 0;
 
@@ -83,6 +100,9 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Onboarding Tutorial for first-time users */}
+      <OnboardingTutorial />
+      
       {/* Hero Header */}
       <header className="relative overflow-hidden border-b border-border/50">
         <div className="absolute inset-0 gradient-hero" />
@@ -115,12 +135,13 @@ const Index = () => {
                     </p>
                   </div>
                 </div>
-                <div className="lg:hidden">
+                <div className="lg:hidden flex items-center gap-2">
+                  <ThemeToggle />
                   <UserMenu />
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <Button
                   variant="outline"
                   size="lg"
@@ -134,20 +155,64 @@ const Index = () => {
                 <Button
                   variant="default"
                   size="lg"
-                  onClick={handleGeneratePredictions}
-                  disabled={isGenerating || !selectedGameweekId}
-                  className="gap-2 gradient-gold text-accent-foreground font-semibold shadow-lg hover:shadow-accent/25 transition-shadow"
+                  onClick={() => handleGeneratePredictions(false)}
+                  disabled={isGenerating || !selectedGameweekId || isProcessing}
+                  className="gap-2 gradient-primary text-primary-foreground font-semibold shadow-lg hover:shadow-primary/25 transition-shadow"
                 >
-                  <Sparkles className={`w-4 h-4 ${isGenerating ? 'animate-pulse' : ''}`} />
-                  {isGenerating ? 'Generating...' : 'Generate Predictions'}
+                  <Sparkles className={`w-4 h-4 ${isGenerating || isProcessing ? 'animate-pulse' : ''}`} />
+                  {isGenerating ? 'Starting...' : isProcessing ? 'Generating...' : 'Generate Predictions'}
                   <ChevronRight className="w-4 h-4" />
                 </Button>
+                {predictionStatus?.status === 'completed' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleGeneratePredictions(true)}
+                    disabled={isGenerating}
+                    className="gap-1.5 text-muted-foreground hover:text-foreground"
+                    title="Force regenerate predictions (ignores cache)"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Force Refresh
+                  </Button>
+                )}
               </div>
+              
+              {/* Prediction Status Indicator */}
+              {predictionStatus && (
+                <div className="flex items-center gap-3 text-sm">
+                  {predictionStatus.status === 'processing' && (
+                    <>
+                      <Progress 
+                        value={predictionStatus.total_players > 0 
+                          ? (predictionStatus.total_processed / predictionStatus.total_players) * 100 
+                          : 0} 
+                        className="w-32 h-2"
+                      />
+                      <span className="text-muted-foreground">
+                        {predictionStatus.total_processed}/{predictionStatus.total_players} players
+                      </span>
+                    </>
+                  )}
+                  {predictionStatus.status === 'completed' && predictionStatus.completed_at && (
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <Clock className="w-3.5 h-3.5" />
+                      Updated {formatTimeSince(predictionStatus.completed_at)}
+                    </span>
+                  )}
+                  {predictionStatus.status === 'failed' && (
+                    <span className="text-destructive text-xs">
+                      Generation failed - try again
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Quick Stats & User Menu */}
             <div className="hidden lg:flex flex-col gap-3">
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <ThemeToggle />
                 <UserMenu />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -268,7 +333,7 @@ const Index = () => {
               </TabsTrigger>
               <TabsTrigger 
                 value="differentials" 
-                className="gap-2 data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all"
+                className="gap-2 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground transition-all"
               >
                 <Flame className="w-4 h-4" />
                 Differentials
@@ -288,15 +353,50 @@ const Index = () => {
                 Accuracy
               </TabsTrigger>
               <TabsTrigger 
+                value="captain" 
+                className="gap-2 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground transition-all"
+              >
+                <Crown className="w-4 h-4" />
+                Captain
+              </TabsTrigger>
+              <TabsTrigger 
+                value="fdr" 
+                className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <LayoutGrid className="w-4 h-4" />
+                FDR
+              </TabsTrigger>
+              <TabsTrigger 
                 value="injuries" 
-                className="gap-2 data-[state=active]:bg-red-500 data-[state=active]:text-white transition-all"
+                className="gap-2 data-[state=active]:bg-destructive data-[state=active]:text-destructive-foreground transition-all"
               >
                 <Bandage className="w-4 h-4" />
                 Injuries
               </TabsTrigger>
+              <TabsTrigger 
+                value="prices" 
+                className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <DollarSign className="w-4 h-4" />
+                Prices
+              </TabsTrigger>
+              <TabsTrigger 
+                value="rivals" 
+                className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <Swords className="w-4 h-4" />
+                Rivals
+              </TabsTrigger>
+              <TabsTrigger 
+                value="topplayers" 
+                className="gap-2 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground transition-all"
+              >
+                <Star className="w-4 h-4" />
+                Top 10
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="myteam" className="animate-fade-in" forceMount>
+            <TabsContent value="myteam" className="animate-fade-in">
               <MyTeamSection gameweekId={selectedGameweekId} />
             </TabsContent>
 
@@ -354,8 +454,28 @@ const Index = () => {
               <AccuracyDashboard selectedGameweekId={selectedGameweekId} />
             </TabsContent>
 
+            <TabsContent value="captain" className="animate-fade-in">
+              <CaptainPicker predictions={predictions || []} isLoading={loadingPreds} />
+            </TabsContent>
+
+            <TabsContent value="fdr" className="animate-fade-in">
+              <FixtureTicker gameweekCount={6} />
+            </TabsContent>
+
             <TabsContent value="injuries" className="animate-fade-in">
               <InjuredPlayersSection />
+            </TabsContent>
+
+            <TabsContent value="prices" className="animate-fade-in">
+              <PriceWatch />
+            </TabsContent>
+
+            <TabsContent value="rivals" className="animate-fade-in">
+              <MiniLeagueRivals />
+            </TabsContent>
+
+            <TabsContent value="topplayers" className="animate-fade-in">
+              <TopPlayersByPosition />
             </TabsContent>
           </Tabs>
         )}

@@ -426,21 +426,34 @@ export type Database = {
           assists: number | null
           bonus: number | null
           clean_sheets: number | null
+          corners_order: number | null
           created_at: string
+          creativity: number | null
+          direct_freekicks_order: number | null
+          expected_assists: number | null
+          expected_goal_involvement: number | null
+          expected_goals: number | null
           first_name: string
           form: number | null
           fpl_id: number
           goals_conceded: number | null
           goals_scored: number | null
+          ict_index: number | null
           id: number
+          influence: number | null
+          key_passes: number | null
           minutes: number | null
+          penalties_order: number | null
           photo: string | null
           position: string
           price: number
           second_name: string
           selected_by_percent: number | null
+          shots: number | null
+          shots_in_box: number | null
           status: string | null
           team_id: number | null
+          threat: number | null
           total_points: number | null
           updated_at: string
           web_name: string
@@ -449,21 +462,34 @@ export type Database = {
           assists?: number | null
           bonus?: number | null
           clean_sheets?: number | null
+          corners_order?: number | null
           created_at?: string
+          creativity?: number | null
+          direct_freekicks_order?: number | null
+          expected_assists?: number | null
+          expected_goal_involvement?: number | null
+          expected_goals?: number | null
           first_name: string
           form?: number | null
           fpl_id: number
           goals_conceded?: number | null
           goals_scored?: number | null
+          ict_index?: number | null
           id?: number
+          influence?: number | null
+          key_passes?: number | null
           minutes?: number | null
+          penalties_order?: number | null
           photo?: string | null
           position: string
           price: number
           second_name: string
           selected_by_percent?: number | null
+          shots?: number | null
+          shots_in_box?: number | null
           status?: string | null
           team_id?: number | null
+          threat?: number | null
           total_points?: number | null
           updated_at?: string
           web_name: string
@@ -472,21 +498,34 @@ export type Database = {
           assists?: number | null
           bonus?: number | null
           clean_sheets?: number | null
+          corners_order?: number | null
           created_at?: string
+          creativity?: number | null
+          direct_freekicks_order?: number | null
+          expected_assists?: number | null
+          expected_goal_involvement?: number | null
+          expected_goals?: number | null
           first_name?: string
           form?: number | null
           fpl_id?: number
           goals_conceded?: number | null
           goals_scored?: number | null
+          ict_index?: number | null
           id?: number
+          influence?: number | null
+          key_passes?: number | null
           minutes?: number | null
+          penalties_order?: number | null
           photo?: string | null
           position?: string
           price?: number
           second_name?: string
           selected_by_percent?: number | null
+          shots?: number | null
+          shots_in_box?: number | null
           status?: string | null
           team_id?: number | null
+          threat?: number | null
           total_points?: number | null
           updated_at?: string
           web_name?: string
@@ -544,6 +583,83 @@ export type Database = {
             columns: ["gameweek_id"]
             isOneToOne: true
             referencedRelation: "gameweeks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prediction_sync_status: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
+          gameweek_id: number
+          id: string
+          last_player_index: number | null
+          started_at: string | null
+          status: string | null
+          total_players: number | null
+          total_processed: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          gameweek_id: number
+          id?: string
+          last_player_index?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_players?: number | null
+          total_processed?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          gameweek_id?: number
+          id?: string
+          last_player_index?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_players?: number | null
+          total_processed?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      price_changes: {
+        Row: {
+          change_date: string | null
+          created_at: string | null
+          id: number
+          new_price: number
+          old_price: number
+          player_id: number | null
+        }
+        Insert: {
+          change_date?: string | null
+          created_at?: string | null
+          id?: number
+          new_price: number
+          old_price: number
+          player_id?: number | null
+        }
+        Update: {
+          change_date?: string | null
+          created_at?: string | null
+          id?: number
+          new_price?: number
+          old_price?: number
+          player_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_changes_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
             referencedColumns: ["id"]
           },
         ]
