@@ -1,166 +1,61 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  :root {
-    /* Dark sports theme with pitch green accents */
-    --background: 220 20% 6%;
-    --foreground: 210 40% 96%;
-
-    --card: 220 18% 10%;
-    --card-foreground: 210 40% 96%;
-
-    --popover: 220 18% 10%;
-    --popover-foreground: 210 40% 96%;
-
-    /* Pitch green as primary */
-    --primary: 142 70% 45%;
-    --primary-foreground: 220 20% 6%;
-
-    /* Muted green for secondary */
-    --secondary: 220 15% 15%;
-    --secondary-foreground: 210 30% 85%;
-
-    --muted: 220 15% 18%;
-    --muted-foreground: 215 15% 55%;
-
-    /* Accent gold for highlights */
-    --accent: 45 90% 55%;
-    --accent-foreground: 220 20% 6%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 220 15% 18%;
-    --input: 220 15% 18%;
-    --ring: 142 70% 45%;
-
-    --radius: 0.75rem;
-
-    /* Custom FPL colors */
-    --fpl-purple: 270 60% 50%;
-    --fpl-green: 142 70% 45%;
-    --fpl-gold: 45 90% 55%;
-    --fpl-red: 0 72% 51%;
-    --fpl-blue: 210 90% 50%;
-
-    /* Difficulty colors */
-    --difficulty-1: 142 70% 50%;
-    --difficulty-2: 85 60% 50%;
-    --difficulty-3: 45 80% 50%;
-    --difficulty-4: 25 90% 55%;
-    --difficulty-5: 0 72% 51%;
-
-    /* Position colors */
-    --pos-gkp: 45 90% 55%;
-    --pos-def: 142 70% 50%;
-    --pos-mid: 210 90% 55%;
-    --pos-fwd: 0 72% 55%;
-
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(142 70% 35%), hsl(142 70% 50%));
-    --gradient-gold: linear-gradient(135deg, hsl(45 90% 45%), hsl(45 90% 60%));
-    --gradient-card: linear-gradient(180deg, hsl(220 18% 12%), hsl(220 18% 8%));
-    --gradient-hero: linear-gradient(135deg, hsl(220 20% 8%) 0%, hsl(142 50% 15% / 0.3) 50%, hsl(220 20% 8%) 100%);
-
-    /* Shadows */
-    --shadow-glow: 0 0 40px hsl(142 70% 45% / 0.15);
-    --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.4);
-    --shadow-elevated: 0 8px 32px hsl(0 0% 0% / 0.5);
-
-    /* Sidebar */
-    --sidebar-background: 220 18% 8%;
-    --sidebar-foreground: 210 30% 85%;
-    --sidebar-primary: 142 70% 45%;
-    --sidebar-primary-foreground: 220 20% 6%;
-    --sidebar-accent: 220 15% 15%;
-    --sidebar-accent-foreground: 210 30% 85%;
-    --sidebar-border: 220 15% 15%;
-    --sidebar-ring: 142 70% 45%;
-  }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply bg-background text-foreground font-sans antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-display font-semibold tracking-tight;
-  }
+body {
+  background: #060e09;
+  color: #eef5ef;
+  font-family: 'DM Mono', monospace;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 
-@layer utilities {
-  .gradient-primary {
-    background: var(--gradient-primary);
-  }
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(57, 255, 110, 0.03) 39px, rgba(57, 255, 110, 0.03) 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 79px, rgba(57, 255, 110, 0.02) 79px, rgba(57, 255, 110, 0.02) 80px);
+  pointer-events: none;
+  z-index: 0;
+}
 
-  .gradient-gold {
-    background: var(--gradient-gold);
-  }
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(180deg, transparent 0px, transparent 60px, rgba(16, 50, 24, 0.35) 60px, rgba(16, 50, 24, 0.35) 120px);
+  pointer-events: none;
+  z-index: 0;
+}
 
-  .gradient-card {
-    background: var(--gradient-card);
-  }
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Bebas Neue', sans-serif;
+}
 
-  .gradient-hero {
-    background: var(--gradient-hero);
-  }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
 
-  .text-gradient {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
-  }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
-  .shadow-glow {
-    box-shadow: var(--shadow-glow);
-  }
+::-webkit-scrollbar {
+  width: 4px;
+}
 
-  .shadow-card {
-    box-shadow: var(--shadow-card);
-  }
+::-webkit-scrollbar-track {
+  background: #060e09;
+}
 
-  .shadow-elevated {
-    box-shadow: var(--shadow-elevated);
-  }
-
-  .glass {
-    @apply bg-card/80 backdrop-blur-lg border border-border/50;
-  }
-
-  .animate-pulse-slow {
-    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-
-  /* Rating circle animation */
-  .rating-circle {
-    animation: rating-fill 1.5s ease-out forwards;
-  }
-
-  @keyframes rating-fill {
-    from {
-      stroke-dasharray: 0, 100;
-    }
-  }
-
-  /* Difficulty badge colors */
-  .difficulty-1 { @apply bg-green-500/20 text-green-400 border-green-500/30; }
-  .difficulty-2 { @apply bg-lime-500/20 text-lime-400 border-lime-500/30; }
-  .difficulty-3 { @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/30; }
-  .difficulty-4 { @apply bg-orange-500/20 text-orange-400 border-orange-500/30; }
-  .difficulty-5 { @apply bg-red-500/20 text-red-400 border-red-500/30; }
-
-  /* Position colors */
-  .pos-gkp { @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/30; }
-  .pos-def { @apply bg-green-500/20 text-green-400 border-green-500/30; }
-  .pos-mid { @apply bg-blue-500/20 text-blue-400 border-blue-500/30; }
-  .pos-fwd { @apply bg-red-500/20 text-red-400 border-red-500/30; }
+::-webkit-scrollbar-thumb {
+  background: #1a7a35;
 }
