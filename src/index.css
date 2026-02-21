@@ -1,61 +1,247 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light theme - Clean whites & grays with PL purple accent */
+    --background: 0 0% 98%;
+    --foreground: 240 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 10%;
+
+    /* Premier League Purple/Magenta as primary */
+    --primary: 280 70% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 8% 93%;
+    --secondary-foreground: 240 10% 20%;
+
+    --muted: 240 8% 95%;
+    --muted-foreground: 240 5% 46%;
+
+    /* Magenta/hot pink accent */
+    --accent: 320 80% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 8% 90%;
+    --input: 240 8% 90%;
+    --ring: 280 70% 50%;
+
+    --radius: 0.75rem;
+
+    /* FPL brand colors */
+    --fpl-purple: 280 70% 50%;
+    --fpl-green: 150 70% 42%;
+    --fpl-gold: 42 92% 56%;
+    --fpl-red: 0 72% 51%;
+    --fpl-blue: 210 90% 50%;
+
+    /* Difficulty colors */
+    --difficulty-1: 150 70% 45%;
+    --difficulty-2: 85 60% 50%;
+    --difficulty-3: 42 80% 50%;
+    --difficulty-4: 25 90% 55%;
+    --difficulty-5: 0 72% 51%;
+
+    /* Position colors */
+    --pos-gkp: 42 90% 55%;
+    --pos-def: 150 70% 45%;
+    --pos-mid: 280 60% 55%;
+    --pos-fwd: 0 72% 55%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(280 70% 45%), hsl(320 80% 55%));
+    --gradient-gold: linear-gradient(135deg, hsl(42 92% 48%), hsl(42 92% 62%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(240 8% 97%));
+    --gradient-hero: linear-gradient(135deg, hsl(280 60% 96%) 0%, hsl(320 50% 95%) 50%, hsl(240 8% 97%) 100%);
+
+    /* Shadows */
+    --shadow-glow: 0 0 40px hsl(280 70% 50% / 0.15);
+    --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.06);
+    --shadow-elevated: 0 8px 32px hsl(0 0% 0% / 0.1);
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 10% 20%;
+    --sidebar-primary: 280 70% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 8% 94%;
+    --sidebar-accent-foreground: 240 10% 20%;
+    --sidebar-border: 240 8% 90%;
+    --sidebar-ring: 280 70% 50%;
+  }
+
+  .dark {
+    /* Dark theme - Deep darks with PL purple/magenta pops */
+    --background: 240 15% 6%;
+    --foreground: 0 0% 95%;
+
+    --card: 240 12% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 240 12% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    /* Premier League Purple/Magenta */
+    --primary: 280 70% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 10% 16%;
+    --secondary-foreground: 0 0% 85%;
+
+    --muted: 240 10% 18%;
+    --muted-foreground: 240 5% 55%;
+
+    /* Magenta accent */
+    --accent: 320 80% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 10% 18%;
+    --input: 240 10% 18%;
+    --ring: 280 70% 60%;
+
+    /* FPL brand colors */
+    --fpl-purple: 280 70% 60%;
+    --fpl-green: 150 70% 50%;
+    --fpl-gold: 42 92% 58%;
+    --fpl-red: 0 72% 55%;
+    --fpl-blue: 210 90% 55%;
+
+    /* Difficulty colors */
+    --difficulty-1: 150 70% 50%;
+    --difficulty-2: 85 60% 50%;
+    --difficulty-3: 42 80% 50%;
+    --difficulty-4: 25 90% 55%;
+    --difficulty-5: 0 72% 55%;
+
+    /* Position colors */
+    --pos-gkp: 42 90% 55%;
+    --pos-def: 150 70% 50%;
+    --pos-mid: 280 60% 60%;
+    --pos-fwd: 0 72% 55%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(280 70% 40%), hsl(320 80% 55%));
+    --gradient-gold: linear-gradient(135deg, hsl(42 92% 45%), hsl(42 92% 60%));
+    --gradient-card: linear-gradient(180deg, hsl(240 12% 12%), hsl(240 12% 8%));
+    --gradient-hero: linear-gradient(135deg, hsl(240 15% 7%) 0%, hsl(280 40% 15% / 0.4) 50%, hsl(240 15% 7%) 100%);
+
+    /* Shadows */
+    --shadow-glow: 0 0 40px hsl(280 70% 55% / 0.2);
+    --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.4);
+    --shadow-elevated: 0 8px 32px hsl(0 0% 0% / 0.5);
+
+    /* Sidebar */
+    --sidebar-background: 240 12% 8%;
+    --sidebar-foreground: 0 0% 85%;
+    --sidebar-primary: 280 70% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 10% 15%;
+    --sidebar-accent-foreground: 0 0% 85%;
+    --sidebar-border: 240 10% 15%;
+    --sidebar-ring: 280 70% 60%;
+  }
 }
 
-body {
-  background: #060e09;
-  color: #eef5ef;
-  font-family: 'DM Mono', monospace;
-  min-height: 100vh;
-  overflow-x: hidden;
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-semibold tracking-tight;
+  }
 }
 
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image:
-    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(57, 255, 110, 0.03) 39px, rgba(57, 255, 110, 0.03) 40px),
-    repeating-linear-gradient(90deg, transparent, transparent 79px, rgba(57, 255, 110, 0.02) 79px, rgba(57, 255, 110, 0.02) 80px);
-  pointer-events: none;
-  z-index: 0;
-}
+@layer utilities {
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
 
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: repeating-linear-gradient(180deg, transparent 0px, transparent 60px, rgba(16, 50, 24, 0.35) 60px, rgba(16, 50, 24, 0.35) 120px);
-  pointer-events: none;
-  z-index: 0;
-}
+  .gradient-gold {
+    background: var(--gradient-gold);
+  }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: 'Bebas Neue', sans-serif;
-}
+  .gradient-card {
+    background: var(--gradient-card);
+  }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.7); }
-}
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
 
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+  }
 
-::-webkit-scrollbar {
-  width: 4px;
-}
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
 
-::-webkit-scrollbar-track {
-  background: #060e09;
-}
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
 
-::-webkit-scrollbar-thumb {
-  background: #1a7a35;
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .glass {
+    @apply bg-card/80 backdrop-blur-lg border border-border/50;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Rating circle animation */
+  .rating-circle {
+    animation: rating-fill 1.5s ease-out forwards;
+  }
+
+  @keyframes rating-fill {
+    from {
+      stroke-dasharray: 0, 100;
+    }
+  }
+
+  /* Difficulty badge colors */
+  .difficulty-1 { @apply bg-green-500/20 text-green-400 border-green-500/30; }
+  .difficulty-2 { @apply bg-lime-500/20 text-lime-400 border-lime-500/30; }
+  .difficulty-3 { @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/30; }
+  .difficulty-4 { @apply bg-orange-500/20 text-orange-400 border-orange-500/30; }
+  .difficulty-5 { @apply bg-red-500/20 text-red-400 border-red-500/30; }
+
+  /* Position colors */
+  .pos-gkp { @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/30; }
+  .pos-def { @apply bg-green-500/20 text-green-400 border-green-500/30; }
+  .pos-mid { @apply bg-purple-500/20 text-purple-400 border-purple-500/30; }
+  .pos-fwd { @apply bg-red-500/20 text-red-400 border-red-500/30; }
+
+  /* Pitch pattern background */
+  .pitch-pattern {
+    background-image: 
+      linear-gradient(90deg, hsl(var(--primary) / 0.03) 1px, transparent 1px),
+      linear-gradient(hsl(var(--primary) / 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
 }
