@@ -16,6 +16,17 @@ export interface PredictionSyncStatus {
   updated_at: string;
 }
 
+// Check if prediction generation appears stuck (hasn't updated in 5 minutes)
+function isStuck(status: PredictionSyncStatus | null): boolean {
+  if (!status || status.status !== 'processing') return false;
+  
+  const lastUpdate = new Date(status.updated_at).getTime();
+  const now = Date.now();
+  const minutesSinceUpdate = (now - lastUpdate) / (60 * 1000);
+  
+  return minutesSinceUpdate > 5; // Stuck if no updates for 5 minutes
+}
+
 export function usePredictionStatus(gameweekId: number | null) {
   const queryClient = useQueryClient();
   const prevStatusRef = useRef<string | null>(null);

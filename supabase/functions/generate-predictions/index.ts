@@ -19,11 +19,11 @@ const requestSchema = z.object({
 // Cache duration in hours
 const CACHE_HOURS = 6;
 
-// Batch size for player processing - increased from 20 to 50 to reduce AI calls
-const BATCH_SIZE = 50;
+// Batch size for player processing - reduced to 20 to prevent timeouts
+const BATCH_SIZE = 20;
 
 // Delay between AI calls in ms to avoid rate limits
-const CALL_DELAY_MS = 300;
+const CALL_DELAY_MS = 500;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -93,9 +93,23 @@ serve(async (req) => {
       // Check if already processing
       if (existingSync?.status === 'processing') {
         const startedTime = new Date(existingSync.started_at).getTime();
-        const processingTimeout = 10 * 60 * 1000; // 10 minutes
+        const processingTimeout = 15 * 60 * 1000; // 15 minutes timeout
+        const timeSinceStart = Date.now() - startedTime;
         
-        if (Date.now() - startedTime < processingTimeout) {
+        // If processing for too long, reset and allow new generation
+        if (timeSinceStart > processingTimeout) {
+          console.warn(`Previous prediction generation timed out after ${Math.round(timeSinceStart / 60000)} minutes. Resetting status.`);
+          // Reset the status so we can try again
+          await supabase
+            .from('prediction_sync_status')
+            .update({
+              status: 'failed',
+              error_message: `Prediction generation timed out after ${Math.round(timeSinceStart / 60000)} minutes`,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('gameweek_id', gameweek_id);
+        } else {
+          // Still processing, return status
           return new Response(JSON.stringify({
             success: true,
             status: 'processing',
@@ -331,20 +345,53 @@ Only return the JSON array, no other text.`;
 
   try {
     // Use cheaper model for bulk predictions to save costs
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-lite', // Cheaper model for bulk predictions
-        messages: [
-          { role: 'system', content: 'You are an FPL expert. Always respond with valid JSON arrays only.' },
-          { role: 'user', content: prompt }
-        ],
-      }),
-    });
+    console.log(`Processing batch of ${batch.length} players with AI...`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.warn(`AI API call timeout after 60s for batch of ${batch.length} players`);
+      controller.abort();
+    }, 60000); // 60 second timeout
+    
+    let aiResponse;
+    try {
+      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash-lite', // Cheaper model for bulk predictions
+          messages: [
+            { role: 'system', content: 'You are an FPL expert. Always respond with valid JSON arrays only.' },
+            { role: 'user', content: prompt }
+          ],
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (fetchErr: any) {
+      clearTimeout(timeoutId);
+      if (fetchErr?.name === 'AbortError' || fetchErr?.message?.includes('abort')) {
+        console.error(`AI API call timed out after 60s`);
+        // Use fallback predictions on timeout
+        return batch.map((p: any) => {
+          const fixture = teamFixtures.get(p.team_id);
+          const basePts = p.form * 0.5 + (p.total_points / Math.max(1, p.minutes / 90)) * 0.3;
+          const difficultyFactor = (6 - (fixture?.difficulty || 3)) / 5;
+          return {
+            player_id: p.id,
+            gameweek_id,
+            predicted_points: Math.round((basePts * difficultyFactor + 2) * 10) / 10,
+            fixture_difficulty: fixture?.difficulty || 3,
+            form_factor: p.form / 10,
+            ai_analysis: `Form: ${p.form}, Fixture difficulty: ${fixture?.difficulty || 3} (timeout fallback)`,
+          };
+        });
+      }
+      throw fetchErr;
+    }
 
     if (!aiResponse.ok) {
       const status = aiResponse.status;

@@ -53,7 +53,8 @@ import {
   Swords,
   Star,
   Clock,
-  RotateCcw
+  RotateCcw,
+  AlertCircle
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
@@ -176,6 +177,21 @@ const Index = () => {
                     Force Refresh
                   </Button>
                 )}
+                {/* Show retry button if predictions appear stuck */}
+                {predictionStatus?.status === 'processing' && predictionStatus.updated_at && 
+                  (Date.now() - new Date(predictionStatus.updated_at).getTime()) > 5 * 60 * 1000 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleGeneratePredictions(true)}
+                    disabled={isGenerating}
+                    className="gap-1.5"
+                    title="Predictions appear to be stuck, retry with fresh generation"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Retry Stuck Generation
+                  </Button>
+                )}
               </div>
               
               {/* Prediction Status Indicator */}
@@ -192,6 +208,14 @@ const Index = () => {
                       <span className="text-muted-foreground">
                         {predictionStatus.total_processed}/{predictionStatus.total_players} players
                       </span>
+                      {/* Show warning if stuck */}
+                      {predictionStatus.updated_at && 
+                        (Date.now() - new Date(predictionStatus.updated_at).getTime()) > 5 * 60 * 1000 && (
+                        <span className="text-yellow-600 dark:text-yellow-500 flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          (Stuck - click Retry)
+                        </span>
+                      )}
                     </>
                   )}
                   {predictionStatus.status === 'completed' && predictionStatus.completed_at && (
