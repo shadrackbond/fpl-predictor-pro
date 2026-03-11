@@ -1,23 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-const requestSchema = z.object({
-  question: z.string().min(1).max(1000),
-  team_data: z.any().optional(),
-  gameweek_id: z.number().nullable().optional(),
-  predictions: z.record(z.union([z.number(), z.null()])).optional(),
-  conversation_history: z.array(z.object({
-    role: z.enum(['user', 'assistant']),
-    content: z.string(),
-  })).optional(),
-  risk_profile: z.enum(['conservative', 'balanced', 'aggressive']).optional(),
-});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -26,19 +13,22 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    
-    const parseResult = requestSchema.safeParse(body);
-    if (!parseResult.success) {
-      return new Response(JSON.stringify({ 
-        error: 'Invalid input',
-        details: parseResult.error.errors,
-      }), {
+
+    const question: string = typeof body?.question === 'string' ? body.question.trim() : '';
+    if (!question) {
+      return new Response(JSON.stringify({ error: 'question is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const { question, team_data, gameweek_id, predictions, conversation_history, risk_profile } = parseResult.data;
+    const team_data = body?.team_data ?? null;
+    const gameweek_id: number | null = typeof body?.gameweek_id === 'number' ? body.gameweek_id : null;
+    const predictions: Record<string, number> = body?.predictions && typeof body.predictions === 'object' ? body.predictions : {};
+    const risk_profile: string = typeof body?.risk_profile === 'string' ? body.risk_profile : 'balanced';
+    const conversation_history: Array<{ role: string; content: string }> = Array.isArray(body?.conversation_history)
+      ? body.conversation_history.filter((m: any) => m && typeof m.role === 'string' && typeof m.content === 'string')
+      : [];
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
