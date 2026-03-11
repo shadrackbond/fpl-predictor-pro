@@ -19,11 +19,11 @@ const requestSchema = z.object({
 // Cache duration in hours
 const CACHE_HOURS = 6;
 
-// Batch size for player processing - reduced to 20 to prevent timeouts
-const BATCH_SIZE = 20;
+// Batch size for player processing - 30 players per AI call balances speed vs accuracy
+const BATCH_SIZE = 30;
 
 // Delay between AI calls in ms to avoid rate limits
-const CALL_DELAY_MS = 500;
+const CALL_DELAY_MS = 150;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -148,6 +148,12 @@ serve(async (req) => {
       throw new Error('No players found');
     }
 
+    // Split into AI-processed players (have played minutes) and fallback-only players
+    // This avoids burning edge function time on benchmark/non-playing players
+    const activePlayers = players.filter((p: any) => (p.minutes || 0) > 0 || (p.selected_by_percent || 0) > 0.5);
+    const inactivePlayers = players.filter((p: any) => (p.minutes || 0) === 0 && (p.selected_by_percent || 0) <= 0.5);
+    console.log(`Players: ${activePlayers.length} active (AI), ${inactivePlayers.length} inactive (fallback)`);
+
     // Get fixtures for this gameweek
     const { data: fixtures } = await supabase
       .from('fixtures')
@@ -188,12 +194,37 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: 'gameweek_id' });
 
-    // Process players in batches
-    const predictions: any[] = [];
-    let processedCount = 0;
+    // Generate fallback predictions immediately for inactive players (no AI needed)
+    const inactivePredictions = inactivePlayers.map((p: any) => {
+      const fixture = teamFixtures.get(p.team_id);
+      return {
+        player_id: p.id,
+        gameweek_id,
+        predicted_points: 2,
+        fixture_difficulty: fixture?.difficulty || 3,
+        form_factor: 0,
+        ai_analysis: 'No minutes played this season (fallback prediction).',
+      };
+    });
+
+    if (inactivePredictions.length > 0) {
+      await supabase
+        .from('player_predictions')
+        .upsert(inactivePredictions, { onConflict: 'player_id,gameweek_id' });
+    }
+
+    // Process active players in batches via AI
+    const predictions: any[] = [...inactivePredictions];
+    let processedCount = inactivePlayers.length;
+
+    // Update progress to reflect inactive players already done
+    await supabase
+      .from('prediction_sync_status')
+      .update({ total_processed: processedCount, updated_at: new Date().toISOString() })
+      .eq('gameweek_id', gameweek_id);
     
-    for (let i = 0; i < players.length; i += BATCH_SIZE) {
-      const batch = players.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < activePlayers.length; i += BATCH_SIZE) {
+      const batch = activePlayers.slice(i, i + BATCH_SIZE);
       const batchPredictions = await processBatch(
         batch, 
         teamFixtures, 
@@ -227,7 +258,7 @@ serve(async (req) => {
       }
 
       // Add delay between batches to avoid rate limits
-      if (i + BATCH_SIZE < players.length) {
+      if (i + BATCH_SIZE < activePlayers.length) {
         await delay(CALL_DELAY_MS);
       }
     }

@@ -11,7 +11,7 @@ const requestSchema = z.object({
   question: z.string().min(1).max(1000),
   team_data: z.any().optional(),
   gameweek_id: z.number().nullable().optional(),
-  predictions: z.record(z.number()).optional(),
+  predictions: z.record(z.union([z.number(), z.null()])).optional(),
   conversation_history: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string(),
@@ -258,7 +258,7 @@ BEHAVIOR RULES
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: 'google/gemini-2.5-flash',
         messages,
         max_tokens: 1000,
       }),

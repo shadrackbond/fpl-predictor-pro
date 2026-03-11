@@ -305,7 +305,7 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
           <AIAssistant
             teamData={userTeam}
             gameweekId={gameweekId}
-            predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
+            predictions={new Map(Object.entries(analysisData.player_predictions || {}).filter(([, v]) => typeof v === 'number' && isFinite(v as number)).map(([k, v]) => [parseInt(k), v as number]))}
           />
 
           {/* Transfer Suggestions */}
