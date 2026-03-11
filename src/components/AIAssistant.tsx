@@ -241,7 +241,13 @@ export function AIAssistant({
                       ? "bg-primary text-primary-foreground ml-8"
                       : "bg-muted mr-8"
                   )}>
-                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    {message.role === 'assistant' ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>ul]:mb-2 [&>ol]:mb-2 [&_strong]:text-primary">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-wrap">{message.content}</p>
+                    )}
                     <p className={cn(
                       "text-xs mt-2",
                       message.role === 'user' ? "opacity-70" : "text-muted-foreground"
