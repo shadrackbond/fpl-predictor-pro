@@ -250,7 +250,7 @@ BEHAVIOR RULES
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages,
-        max_tokens: 1000,
+        max_tokens: 4096,
       }),
     });
 
