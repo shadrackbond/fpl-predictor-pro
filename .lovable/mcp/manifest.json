@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "sdk_version": "0.26.1",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://wxafugdkvvcymluycngf.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "fpl-predictor-pro",
+      "version": "0.1.0",
+      "title": "FPL Predictor Pro"
+    },
+    "tools": [
+      {
+        "name": "get_my_team",
+        "title": "Get my FPL team",
+        "description": "Get the signed-in user's saved Fantasy Premier League team: squad player IDs, captain, bank, free transfers, rank and points.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_top_predictions",
+        "title": "Get top predicted players",
+        "description": "Get this app's highest predicted point scorers for a gameweek, with price, form and ownership. Omit gameweek_id to use the current gameweek.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "gameweek_id": {
+              "type": "integer",
+              "description": "Gameweek number. Defaults to the current gameweek."
+            },
+            "position": {
+              "type": "string",
+              "enum": [
+                "GKP",
+                "DEF",
+                "MID",
+                "FWD"
+              ],
+              "description": "Filter by position."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "How many players to return (default 15, max 50)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "search_players",
+        "title": "Search players",
+        "description": "Search current Premier League players by name and return their FPL stats: price, form, points, ownership and availability status.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Part of a player's name, e.g. 'Salah'."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "How many players to return (default 10, max 25)."
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_gameweek_fixtures",
+        "title": "Get gameweek fixtures",
+        "description": "Get fixtures and difficulty ratings for a gameweek. Omit gameweek_id to use the current gameweek.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "gameweek_id": {
+              "type": "integer",
+              "description": "Gameweek number. Defaults to the current gameweek."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
