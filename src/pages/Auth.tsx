@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,10 +17,13 @@ export default function Auth() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { user, signIn, signUp, resetPassword } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const nextParam = searchParams.get('next');
+  const nextPath = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/app';
 
   useEffect(() => {
     if (user) {
-      navigate('/app');
+      navigate(nextPath);
     }
   }, [user, navigate]);
 
@@ -43,7 +46,7 @@ export default function Auth() {
       }
     } else {
       toast.success('Welcome back!');
-      navigate('/app');
+      navigate(nextPath);
     }
   };
 
@@ -70,7 +73,7 @@ export default function Auth() {
       }
     } else {
       toast.success('Account created successfully!');
-      navigate('/app');
+      navigate(nextPath);
     }
   };
 
