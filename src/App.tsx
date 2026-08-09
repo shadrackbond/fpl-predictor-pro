@@ -33,6 +33,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const nextParam = searchParams.get("next");
+  const nextPath =
+    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/app";
 
   if (loading) {
     return (
@@ -42,10 +46,11 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If user is logged in, redirect to app
+  // If user is logged in, redirect to the app (or the preserved destination)
   if (user) {
-    return <Navigate to="/app" replace />;
+    return <Navigate to={nextPath} replace />;
   }
+
 
   return <>{children}</>;
 }
