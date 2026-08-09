@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
+import OAuthConsent from "./pages/OAuthConsent";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,7 @@ const AppRoutes = () => {
       <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
       <Route path="/app" element={<ProtectedRoute><Index /></ProtectedRoute>} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
     </Routes>
