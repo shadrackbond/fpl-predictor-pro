@@ -106,7 +106,7 @@ export function WorkspaceNavigation({ active, onChange }: { active: WorkspaceVie
                       data-active={isActive}
                       className="edge-nav-item group"
                     >
-                      <Icon className={cn('mt-px h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
+                      <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
                       <span className="min-w-0">
                         <span className="edge-nav-item-title">{item.label}</span>
                         <span className="edge-nav-item-copy">{item.description}</span>
