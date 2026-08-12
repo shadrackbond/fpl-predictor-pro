@@ -76,7 +76,7 @@ export function WorkspaceNavigation({ active, onChange }: { active: WorkspaceVie
     <>
       <div className="lg:hidden">
         <Select value={active} onValueChange={value => onChange(value as WorkspaceView)}>
-          <SelectTrigger className="h-12 rounded-xl bg-card shadow-sm"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-10 rounded-md bg-card shadow-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             {groups.map(group => (
               <div key={group.label}>
@@ -89,11 +89,11 @@ export function WorkspaceNavigation({ active, onChange }: { active: WorkspaceVie
       </div>
 
       <aside className="hidden lg:block">
-        <nav aria-label="FPL workspace" className="sticky top-5 space-y-5 rounded-2xl border border-border/60 bg-card p-3 shadow-sm">
-          {groups.map(group => (
+        <nav aria-label="FPL workspace" className="edge-nav space-y-4">
+          {groups.map((group, groupIndex) => (
             <div key={group.label}>
-              <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{group.label}</p>
-              <div className="space-y-1">
+              <p className="edge-nav-label">{String(groupIndex + 1).padStart(2, '0')} — {group.label}</p>
+              <div className="space-y-0.5">
                 {group.items.map(item => {
                   const Icon = item.icon;
                   const isActive = item.value === active;
@@ -103,15 +103,13 @@ export function WorkspaceNavigation({ active, onChange }: { active: WorkspaceVie
                       key={item.value}
                       onClick={() => onChange(item.value)}
                       aria-current={isActive ? 'page' : undefined}
-                      className={cn(
-                        'group flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors',
-                        isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground hover:bg-muted',
-                      )}
+                      data-active={isActive}
+                      className="edge-nav-item group"
                     >
-                      <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground')} />
+                      <Icon className={cn('mt-px h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
                       <span className="min-w-0">
-                        <span className="block text-sm font-semibold leading-4">{item.label}</span>
-                        <span className={cn('mt-1 block truncate text-[11px]', isActive ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{item.description}</span>
+                        <span className="edge-nav-item-title">{item.label}</span>
+                        <span className="edge-nav-item-copy">{item.description}</span>
                       </span>
                     </button>
                   );

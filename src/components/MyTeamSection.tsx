@@ -198,81 +198,56 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
   // Team already imported - show analysis
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Team Header */}
-      <Card className="bg-card border-border">
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
-                <Trophy className="w-7 h-7 text-primary-foreground" />
+      <Card className="edge-team-summary">
+        <CardContent className="p-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="edge-team-badge">
+                <Trophy className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold">{userTeam.team_name}</h2>
-                <p className="text-muted-foreground">FPL ID: {userTeam.fpl_team_id}</p>
+                <h2 className="text-base font-bold leading-none normal-case">{userTeam.team_name}</h2>
+                <p className="mt-1 font-mono text-[9px] text-muted-foreground">FPL ID {userTeam.fpl_team_id}</p>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary" className="gap-1 py-1.5 px-3">
-                <TrendingUp className="w-3.5 h-3.5" />
-                Rank: {userTeam.overall_rank?.toLocaleString() || 'N/A'}
+            <div className="flex flex-wrap gap-1.5">
+              <Badge variant="secondary" className="gap-1 px-2 py-1 font-mono text-[9px] font-normal">
+                Rank <strong>{userTeam.overall_rank?.toLocaleString() || 'N/A'}</strong>
               </Badge>
-              <Badge variant="secondary" className="gap-1 py-1.5 px-3">
-                <Trophy className="w-3.5 h-3.5" />
-                Points: {userTeam.overall_points || 0}
+              <Badge variant="secondary" className="gap-1 px-2 py-1 font-mono text-[9px] font-normal">
+                Points <strong>{userTeam.overall_points || 0}</strong>
               </Badge>
-              <Badge variant="secondary" className="gap-1 py-1.5 px-3">
-                <Coins className="w-3.5 h-3.5" />
-                Bank: £{(userTeam.bank || 0).toFixed(1)}M
+              <Badge variant="secondary" className="gap-1 px-2 py-1 font-mono text-[9px] font-normal">
+                Bank <strong>£{(userTeam.bank || 0).toFixed(1)}m</strong>
               </Badge>
-              <Badge variant="outline" className="gap-1 py-1.5 px-3 border-primary text-primary">
-                <ArrowLeftRight className="w-3.5 h-3.5" />
+              <Badge variant="outline" className="border-primary px-2 py-1 font-mono text-[9px] text-primary">
                 {userTeam.free_transfers || 1} FT
               </Badge>
             </div>
           </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefreshAnalysis}
-              disabled={isAnalyzing}
-              className="gap-2"
-            >
-              {isAnalyzing ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <TrendingUp className="w-4 h-4" />
-                  Refresh Analysis
-                </>
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleChangeTeam}
-              disabled={isAnalyzing}
-              className="gap-2 text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeftRight className="w-4 h-4" />
-              Change Team
-            </Button>
-            <ShareTeamButton
-              teamName={userTeam.team_name || 'My FPL Team'}
-              points={userTeam.overall_points || undefined}
-              rank={userTeam.overall_rank || undefined}
-              gameweek={gameweeks?.find(gw => gw.id === gameweekId)?.name}
-              containerRef={teamContainerRef}
-            />
-          </div>
         </CardContent>
       </Card>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" onClick={handleRefreshAnalysis} disabled={isAnalyzing} className="edge-action gap-2">
+          {isAnalyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <TrendingUp className="h-3.5 w-3.5" />}
+          {isAnalyzing ? 'Analyzing...' : 'Refresh analysis'}
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleChangeTeam} disabled={isAnalyzing} className="edge-action gap-2">
+          <ArrowLeftRight className="h-3.5 w-3.5" />
+          Change team
+        </Button>
+        <ShareTeamButton
+          teamName={userTeam.team_name || 'My FPL Team'}
+          points={userTeam.overall_points || undefined}
+          rank={userTeam.overall_rank || undefined}
+          gameweek={gameweeks?.find(gw => gw.id === gameweekId)?.name}
+          containerRef={teamContainerRef}
+        />
+      </div>
 
       {/* Loading state */}
       {isAnalyzing && !hasAnalysis && (
@@ -285,68 +260,15 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
       {/* Analysis results */}
       {hasAnalysis && (
         <>
-          {/* Risk Profile & Smart Analysis */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <RiskProfileSelector value={riskProfile} onChange={setRiskProfile} />
-            <SmartTeamAnalyzer
-              players={analysisData.user_players || []}
-              predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
-              captainId={userTeam.captain_id}
-            />
-          </div>
-
-          {/* Team Comparison */}
-          {teamComparison && (
-            <TeamComparison comparison={teamComparison} />
-          )}
-
-          {/* Transfer Suggestions */}
-          <TransferSuggestions
-            suggestions={analysisData.transfers || []}
-            freeTransfers={userTeam.free_transfers || 1}
-            isLoading={isAnalyzing}
-          />
-
-          {/* Chip Analysis */}
-          <ChipAnalysis
-            chips={analysisData.chip_analysis || []}
-            chipsAvailable={userTeam.chips_available as string[] || []}
-            isLoading={isAnalyzing}
-          />
-
-          {/* Gameweek History Table */}
-          {Array.isArray(analysisData.gameweek_history) && analysisData.gameweek_history.length > 0 && (
-            <GameweekHistoryTable history={analysisData.gameweek_history as GameweekHistoryRow[]} />
-          )}
-
           {/* Team Display Toggle */}
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Your Team</CardTitle>
-                <div className="flex gap-2">
-                  <Button
-                    variant={!showOptimized ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setShowOptimized(false)}
-                    className="gap-2"
-                  >
-                    <Users className="w-4 h-4" />
-                    Current
-                  </Button>
-                  <Button
-                    variant={showOptimized ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setShowOptimized(true)}
-                    className="gap-2"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Optimization
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
+          <div className="flex justify-end gap-1.5">
+            <Button variant={!showOptimized ? 'default' : 'outline'} size="sm" onClick={() => setShowOptimized(false)} className="edge-action gap-1.5">
+              <Users className="h-3.5 w-3.5" /> Current
+            </Button>
+            <Button variant={showOptimized ? 'default' : 'outline'} size="sm" onClick={() => setShowOptimized(true)} className="edge-action gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" /> Optimization
+            </Button>
+          </div>
 
           {/* Team Simulator with Transfer/Sub capabilities */}
           <div ref={teamContainerRef}>
@@ -360,6 +282,31 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
               showOptimized={showOptimized}
               bank={userTeam.bank || 0}
             />
+          </div>
+
+          <div className="mt-5 space-y-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <RiskProfileSelector value={riskProfile} onChange={setRiskProfile} />
+              <SmartTeamAnalyzer
+                players={analysisData.user_players || []}
+                predictions={new Map(Object.entries(analysisData.player_predictions || {}).map(([k, v]) => [parseInt(k), v as number]))}
+                captainId={userTeam.captain_id}
+              />
+            </div>
+
+            {teamComparison && <TeamComparison comparison={teamComparison} />}
+
+            <TransferSuggestions suggestions={analysisData.transfers || []} freeTransfers={userTeam.free_transfers || 1} isLoading={isAnalyzing} />
+
+            <ChipAnalysis
+              chips={analysisData.chip_analysis || []}
+              chipsAvailable={userTeam.chips_available as string[] || []}
+              isLoading={isAnalyzing}
+            />
+
+            {Array.isArray(analysisData.gameweek_history) && analysisData.gameweek_history.length > 0 && (
+              <GameweekHistoryTable history={analysisData.gameweek_history as GameweekHistoryRow[]} />
+            )}
           </div>
         </>
       )}

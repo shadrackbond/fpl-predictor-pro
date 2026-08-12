@@ -6,7 +6,7 @@ import {
   Users, Target, ArrowLeftRight, RotateCcw, Sparkles, 
   X, Check, AlertCircle
 } from 'lucide-react';
-import { POSITION_COLORS, type Position } from '@/types/fpl';
+import { type Position } from '@/types/fpl';
 import { PlayerSearchModal } from './PlayerSearchModal';
 import { toast } from 'sonner';
 import {
@@ -334,23 +334,23 @@ export function TeamSimulator({
 
   return (
     <>
-      <Card className="bg-card border-border">
-        <CardHeader>
+      <Card className="edge-lineup-card">
+        <CardHeader className="edge-lineup-toolbar">
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-primary" />
+              <CardTitle className="flex items-center gap-2 text-sm normal-case">
+                <Users className="h-3.5 w-3.5 text-primary" />
                 {showOptimized ? 'Optimized Lineup' : isSimulationMode ? 'Simulation Mode' : 'Current Lineup'}
               </CardTitle>
               <div className="flex items-center gap-2 flex-wrap">
                 {totalPredicted > 0 && (
-                  <Badge variant="secondary" className="text-sm gap-1">
+                  <Badge variant="secondary" className="gap-1 font-mono text-[9px]">
                     <Target className="w-3 h-3" />
                     {totalPredicted.toFixed(1)} pts
                   </Badge>
                 )}
                 {hasChanges && pointsDiff !== 0 && (
-                  <Badge variant={pointsDiff > 0 ? 'default' : 'destructive'} className="text-sm">
+                  <Badge variant={pointsDiff > 0 ? 'default' : 'destructive'} className="font-mono text-[9px]">
                     {pointsDiff > 0 ? '+' : ''}{pointsDiff.toFixed(1)} pts
                   </Badge>
                 )}
@@ -364,15 +364,15 @@ export function TeamSimulator({
                   variant="outline"
                   size="sm"
                   onClick={() => setIsSimulationMode(true)}
-                  className="gap-2"
+                  className="edge-action gap-2"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="h-3.5 w-3.5" />
                   Simulate Changes
                 </Button>
               ) : (
                 <>
                   <Select value={selectedFormation} onValueChange={handleFormationChange}>
-                    <SelectTrigger className="w-[100px] h-8">
+                    <SelectTrigger className="h-8 w-[92px] font-mono text-[10px]">
                       <SelectValue placeholder="Formation" />
                     </SelectTrigger>
                     <SelectContent>
@@ -382,21 +382,21 @@ export function TeamSimulator({
                     </SelectContent>
                   </Select>
                   {selectedForSub ? (
-                    <Badge variant="default" className="py-1.5 px-3 gap-1 bg-yellow-600 text-white">
+                    <Badge variant="default" className="gap-1 bg-yellow-600 px-2 py-1 font-mono text-[9px] text-white">
                       <AlertCircle className="w-3.5 h-3.5" />
                       Swapping: {selectedForSub.web_name}
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="py-1.5 px-3 gap-1 bg-primary/10 text-primary border-primary">
+                    <Badge variant="outline" className="gap-1 border-primary bg-primary/10 px-2 py-1 font-mono text-[9px] text-primary">
                       <AlertCircle className="w-3.5 h-3.5" />
                       Click player to swap
                     </Badge>
                   )}
-                  <Badge variant="secondary" className="py-1.5 px-3 gap-1">
+                  <Badge variant="secondary" className="gap-1 px-2 py-1 font-mono text-[9px]">
                     Bank: £{simulatedBank.toFixed(1)}M
                   </Badge>
                   {transfers.length > 0 && (
-                    <Badge variant="secondary" className="py-1.5 px-3 gap-1">
+                    <Badge variant="secondary" className="gap-1 px-2 py-1 font-mono text-[9px]">
                       {transfers.length} transfer{transfers.length > 1 ? 's' : ''}
                     </Badge>
                   )}
@@ -405,7 +405,7 @@ export function TeamSimulator({
                       variant="ghost"
                       size="sm"
                       onClick={() => setSelectedForSub(null)}
-                      className="gap-1 text-muted-foreground h-8"
+                      className="edge-action h-8 gap-1 text-muted-foreground"
                     >
                       <X className="w-3 h-3" />
                       Cancel
@@ -416,7 +416,7 @@ export function TeamSimulator({
                       variant="ghost"
                       size="sm"
                       onClick={handleReset}
-                      className="gap-2 text-muted-foreground"
+                      className="edge-action gap-2 text-muted-foreground"
                     >
                       <RotateCcw className="w-4 h-4" />
                       Reset
@@ -427,49 +427,15 @@ export function TeamSimulator({
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Starting XI */}
+        <CardContent className="p-0">
+          <div className="edge-pitch">
             {positionOrder.map(position => {
               const posPlayers = startingByPosition[position];
               if (posPlayers.length === 0) return null;
               
               return (
-                <div key={position}>
-                  <h4 className={`text-xs font-semibold mb-2 ${POSITION_COLORS[position]}`}>
-                    {position === 'GKP' ? 'Goalkeeper' : 
-                     position === 'DEF' ? 'Defenders' : 
-                     position === 'MID' ? 'Midfielders' : 'Forwards'}
-                  </h4>
-                  <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                    {posPlayers.map(player => (
-                      <PlayerCard
-                        key={player.id}
-                        player={player}
-                        predictions={predictions}
-                        positionLabels={positionLabels}
-                        isCaptain={player.id === simulatedCaptainId}
-                        isViceCaptain={player.id === simulatedViceCaptainId}
-                        isSimulationMode={isSimulationMode}
-                        isStarting={true}
-                        isSelectedForSub={selectedForSub?.id === player.id}
-                        onClick={() => handlePlayerClick(player)}
-                        onTransfer={() => handleOpenTransfer(player)}
-                        onSetCaptain={() => handleSetCaptain(player)}
-                        onSetViceCaptain={() => handleSetViceCaptain(player)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Bench */}
-            {bench.length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold mb-2 text-muted-foreground">Bench</h4>
-                <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
-                  {bench.map(player => (
+                <div key={position} className="edge-position-row">
+                  {posPlayers.map(player => (
                     <PlayerCard
                       key={player.id}
                       player={player}
@@ -478,7 +444,7 @@ export function TeamSimulator({
                       isCaptain={player.id === simulatedCaptainId}
                       isViceCaptain={player.id === simulatedViceCaptainId}
                       isSimulationMode={isSimulationMode}
-                      isStarting={false}
+                      isStarting={true}
                       isSelectedForSub={selectedForSub?.id === player.id}
                       onClick={() => handlePlayerClick(player)}
                       onTransfer={() => handleOpenTransfer(player)}
@@ -487,35 +453,61 @@ export function TeamSimulator({
                     />
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Transfers List */}
-            {transfers.length > 0 && (
-              <div className="border-t border-border pt-4 mt-4">
-                <h4 className="text-xs font-semibold mb-2 text-primary">Simulated Transfers</h4>
-                <div className="space-y-2">
-                  {transfers.map((transfer, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-sm">
-                      <Badge variant="destructive" className="gap-1">
-                        <X className="w-3 h-3" />
-                        {transfer.playerOut.web_name}
-                      </Badge>
-                      <ArrowLeftRight className="w-4 h-4 text-muted-foreground" />
-                      <Badge variant="default" className="gap-1 bg-green-600">
-                        <Check className="w-3 h-3" />
-                        {transfer.playerIn.web_name}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        ({transfer.playerIn.price > transfer.playerOut.price ? '-' : '+'}
-                        £{Math.abs(transfer.playerIn.price - transfer.playerOut.price).toFixed(1)}M)
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              );
+            })}
           </div>
+
+          {/* Bench */}
+          {bench.length > 0 && (
+            <div className="edge-bench">
+              <p className="edge-bench-label">Bench</p>
+              <div className="edge-bench-row">
+                {bench.map(player => (
+                  <PlayerCard
+                    key={player.id}
+                    player={player}
+                    predictions={predictions}
+                    positionLabels={positionLabels}
+                    isCaptain={player.id === simulatedCaptainId}
+                    isViceCaptain={player.id === simulatedViceCaptainId}
+                    isSimulationMode={isSimulationMode}
+                    isStarting={false}
+                    isSelectedForSub={selectedForSub?.id === player.id}
+                    onClick={() => handlePlayerClick(player)}
+                    onTransfer={() => handleOpenTransfer(player)}
+                    onSetCaptain={() => handleSetCaptain(player)}
+                    onSetViceCaptain={() => handleSetViceCaptain(player)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Transfers List */}
+          {transfers.length > 0 && (
+            <div className="border-t border-border p-4">
+              <h4 className="mb-2 text-xs font-semibold text-primary">Simulated Transfers</h4>
+              <div className="space-y-2">
+                {transfers.map((transfer, idx) => (
+                  <div key={idx} className="flex items-center gap-2 text-sm">
+                    <Badge variant="destructive" className="gap-1">
+                      <X className="w-3 h-3" />
+                      {transfer.playerOut.web_name}
+                    </Badge>
+                    <ArrowLeftRight className="w-4 h-4 text-muted-foreground" />
+                    <Badge variant="default" className="gap-1 bg-green-600">
+                      <Check className="w-3 h-3" />
+                      {transfer.playerIn.web_name}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      ({transfer.playerIn.price > transfer.playerOut.price ? '-' : '+'}
+                      £{Math.abs(transfer.playerIn.price - transfer.playerOut.price).toFixed(1)}M)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -583,63 +575,26 @@ function PlayerCard({
   return (
     <div 
       onClick={onClick}
-      className={`aspect-square p-3 rounded-lg border bg-muted/30 transition-all flex flex-col justify-between relative group 
-        ${!isStarting ? 'opacity-60' : ''} 
-        ${isSimulationMode ? 'cursor-pointer hover:bg-muted/50' : ''} 
-        ${isSelectedForSub ? 'border-yellow-500 border-2 bg-yellow-500/10 ring-2 ring-yellow-500/30' : 'border-border'}
-        ${isSimulationMode && !isSelectedForSub ? 'hover:border-primary' : ''}`}
+      data-position={player.position}
+      className={`edge-player group ${!isStarting ? 'edge-player--bench' : ''} ${isSimulationMode ? 'cursor-pointer' : ''} ${isSelectedForSub ? 'rounded-md bg-yellow-500/10 ring-2 ring-yellow-500/70' : ''}`}
     >
-      <div className="flex items-center justify-between">
-        <Badge 
-          variant="outline" 
-          className={`text-[10px] px-1 py-0 ${POSITION_COLORS[player.position]}`}
-        >
-          {positionLabels[player.position]}
-        </Badge>
-        <div className="flex gap-1">
-          {isCaptain && (
-            <Badge variant="default" className="text-[10px] px-1.5 py-0 bg-primary">C</Badge>
-          )}
-          {isViceCaptain && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0">V</Badge>
-          )}
-        </div>
+      <div className="edge-player-kit">
+        {player.teams?.short_name || positionLabels[player.position]}
+        {isCaptain && <span className="edge-captain-mark">C</span>}
+        {isViceCaptain && <span className="edge-vice-mark">V</span>}
       </div>
-      
-      <div className="text-center">
-        <p className="font-semibold text-sm truncate">{player.web_name}</p>
-        <p className="text-[10px] text-muted-foreground">
-          {player.teams?.short_name || 'N/A'}
-        </p>
-      </div>
-      
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-muted-foreground">£{player.price.toFixed(1)}M</span>
-        <div className="text-right">
-          {predictedPts > 0 ? (
-            <span className="font-semibold text-primary">{predictedPts.toFixed(1)} pts</span>
-          ) : (
-            <span className="text-muted-foreground">{player.total_points} pts</span>
-          )}
-        </div>
-      </div>
+      <p className="edge-player-name">{player.web_name}</p>
+      <p className="edge-player-points">{predictedPts > 0 ? predictedPts.toFixed(1) : player.total_points} pts</p>
+      <span className="edge-player-meter" />
 
       {/* Action overlay when in simulation mode - only show for transfer/captain actions */}
       {isSimulationMode && !isSelectedForSub && (
-        <div className="absolute inset-0 bg-background/95 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex flex-col items-center justify-center gap-1.5 p-2">
-          <p className="text-[10px] text-muted-foreground mb-1">Click to swap</p>
-          <Button size="sm" variant="outline" className="w-full h-7 text-xs gap-1" onClick={(e) => { e.stopPropagation(); onTransfer(); }}>
+        <div className="edge-player-actions">
+          <Button size="sm" variant="outline" title="Transfer player" className="h-6 w-6 p-0" onClick={(e) => { e.stopPropagation(); onTransfer(); }}>
             <ArrowLeftRight className="w-3 h-3" />
-            Transfer
           </Button>
-          <div className="flex gap-1 w-full">
-            <Button size="sm" variant={isCaptain ? "default" : "outline"} className="flex-1 h-6 text-[10px] px-1" onClick={(e) => { e.stopPropagation(); onSetCaptain(); }}>
-              C
-            </Button>
-            <Button size="sm" variant={isViceCaptain ? "default" : "outline"} className="flex-1 h-6 text-[10px] px-1" onClick={(e) => { e.stopPropagation(); onSetViceCaptain(); }}>
-              V
-            </Button>
-          </div>
+          <Button size="sm" variant={isCaptain ? 'default' : 'outline'} className="h-6 w-6 p-0 text-[9px]" onClick={(e) => { e.stopPropagation(); onSetCaptain(); }}>C</Button>
+          <Button size="sm" variant={isViceCaptain ? 'default' : 'outline'} className="h-6 w-6 p-0 text-[9px]" onClick={(e) => { e.stopPropagation(); onSetViceCaptain(); }}>V</Button>
         </div>
       )}
     </div>

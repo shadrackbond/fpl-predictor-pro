@@ -119,28 +119,28 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="edge-app">
       <OnboardingTutorial />
 
-      <header className="border-b border-border/60 bg-card/90 backdrop-blur-xl">
-        <div className="container flex min-h-16 items-center justify-between gap-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <Zap className="h-5 w-5" />
+      <header className="edge-header">
+        <div className="edge-frame flex min-h-[3.15rem] items-center justify-between gap-4 py-2">
+          <div className="flex items-center gap-2">
+            <div className="edge-brand-mark">
+              <Zap className="h-4 w-4" />
             </div>
             <div>
-              <p className="font-display text-lg font-bold leading-5">FPL Edge</p>
-              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Decision workspace</p>
+              <p className="edge-brand-title">FPL EDGE</p>
+              <p className="edge-brand-subtitle">Decision workspace</p>
             </div>
           </div>
 
-          <div className="hidden min-w-[240px] md:block">
-            {loadingGameweeks ? <Skeleton className="h-10 w-full" /> : gameweeks?.length ? (
-              <GameweekSelector gameweeks={gameweeks} selectedId={selectedGameweekId} onSelect={setSelectedGameweekId} />
-            ) : null}
-          </div>
-
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="hidden min-w-[155px] md:block">
+              {loadingGameweeks ? <Skeleton className="h-8 w-full" /> : gameweeks?.length ? (
+                <GameweekSelector gameweeks={gameweeks} selectedId={selectedGameweekId} onSelect={setSelectedGameweekId} />
+              ) : null}
+            </div>
+            <span className="edge-header-date hidden xl:inline">◷ {format(new Date(), 'MMM d · HH:mm')}</span>
             <ThemeToggle />
             <UserMenu />
           </div>
@@ -148,42 +148,39 @@ const Index = () => {
       </header>
 
       <main>
-        <section className="relative overflow-hidden border-b border-border/50 bg-[linear-gradient(135deg,hsl(var(--card)),hsl(var(--muted)/0.55))]">
-          <div className="pointer-events-none absolute -right-32 -top-40 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
-          <div className="container relative py-7 md:py-9">
-            <div className="mb-5 md:hidden">
+        <section className="edge-hero">
+          <div className="edge-frame edge-hero-inner">
+            <div className="mb-2 w-full md:hidden">
               {loadingGameweeks ? <Skeleton className="h-11 w-full" /> : gameweeks?.length ? (
                 <GameweekSelector gameweeks={gameweeks} selectedId={selectedGameweekId} onSelect={setSelectedGameweekId} />
               ) : null}
             </div>
 
-            <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-              <div className="max-w-2xl">
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="gap-1.5 border-primary/25 bg-primary/10 text-primary"><BrainCircuit className="h-3.5 w-3.5" /> {modelVersion}</Badge>
-                  <Badge variant="outline" className="gap-1.5"><Clock3 className="h-3.5 w-3.5" /> {deadlineLabel}</Badge>
-                </div>
-                <h1 className="font-display text-3xl font-bold tracking-tight md:text-4xl">{currentItem.label}</h1>
-                <p className="mt-2 text-muted-foreground">{currentItem.description}. Explainable projections built for real gameweek decisions.</p>
+            <div className="max-w-2xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="edge-overline gap-1.5 border-white/30 bg-white/5 text-foreground"><BrainCircuit className="h-3 w-3" /> {modelVersion}</Badge>
+                <Badge variant="outline" className="edge-overline gap-1.5 border-white/30 bg-white/5 text-foreground"><Clock3 className="h-3 w-3" /> {deadlineLabel}</Badge>
               </div>
+              <h1 className="edge-hero-title">{currentItem.label}</h1>
+              <p className="edge-hero-copy">{currentItem.description}. Explainable projections built for real gameweek decisions — your squad, laid out the way it lines up on Saturday.</p>
+            </div>
 
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => fetchFPLData.mutate()} disabled={fetchFPLData.isPending} className="gap-2 bg-card">
-                  <Database className={fetchFPLData.isPending ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} />
-                  {fetchFPLData.isPending ? 'Syncing data' : 'Sync FPL data'}
-                </Button>
-                <Button onClick={() => calculate(false)} disabled={!selectedGameweekId || isBusy} className="gap-2 shadow-sm">
-                  <Sparkles className={isBusy ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} />
-                  {isBusy ? 'Calculating' : predictions?.length ? 'Recalculate' : 'Generate projections'}
-                </Button>
-                {predictions?.length ? (
-                  <Button variant="ghost" size="icon" onClick={() => calculate(true)} disabled={generatePredictions.isPending} title="Ignore cache and rebuild"><RotateCcw className="h-4 w-4" /></Button>
-                ) : null}
-              </div>
+            <div className="flex shrink-0 flex-wrap gap-2 pt-0.5">
+              <Button variant="outline" onClick={() => fetchFPLData.mutate()} disabled={fetchFPLData.isPending} className="edge-action gap-2 border-white/30 bg-transparent text-foreground hover:bg-white/10">
+                <Database className={fetchFPLData.isPending ? 'h-3.5 w-3.5 animate-pulse' : 'h-3.5 w-3.5'} />
+                {fetchFPLData.isPending ? 'Syncing data' : 'Sync FPL data'}
+              </Button>
+              <Button onClick={() => calculate(false)} disabled={!selectedGameweekId || isBusy} className="edge-action gap-2 bg-[#f0eee4] text-[#102419] hover:bg-white">
+                <Sparkles className={isBusy ? 'h-3.5 w-3.5 animate-pulse' : 'h-3.5 w-3.5'} />
+                {isBusy ? 'Calculating' : predictions?.length ? 'Recalculate' : 'Generate projections'}
+              </Button>
+              {predictions?.length ? (
+                <Button variant="ghost" size="icon" onClick={() => calculate(true)} disabled={generatePredictions.isPending} title="Ignore cache and rebuild" className="h-8 w-8"><RotateCcw className="h-3.5 w-3.5" /></Button>
+              ) : null}
             </div>
 
             {(isProcessing || predictionStatus?.status === 'failed') && (
-              <div className="mt-5 max-w-2xl rounded-xl border border-border/60 bg-card/80 p-3 shadow-sm">
+              <div className="absolute bottom-2 left-6 max-w-2xl rounded-md border border-border/60 bg-card/90 p-2.5 shadow-sm">
                 {isProcessing ? (
                   <div className="flex items-center gap-3">
                     <Progress value={projectionProgress} className="h-2 flex-1" />
@@ -198,19 +195,19 @@ const Index = () => {
           </div>
         </section>
 
-        <section className="container py-6">
+        <section className="edge-frame edge-main">
           {gameweeks?.length ? (
             <>
-              <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="edge-metrics">
                 <Metric icon={Trophy} label="Projected XI" value={optimalTeam ? `${Number(optimalTeam.total_predicted_points).toFixed(1)} pts` : '—'} detail={optimalTeam ? `${optimalTeam.formation} · captain included` : 'Generate this gameweek'} />
                 <Metric icon={Target} label="Team rating" value={optimalTeam ? `${optimalTeam.team_rating}/100` : '—'} detail="Budget and confidence adjusted" />
                 <Metric icon={BarChart3} label="Last model score" value={lastScored?.accuracy_percentage != null ? `${Number(lastScored.accuracy_percentage).toFixed(1)}%` : '—'} detail={lastScored?.avg_prediction_error != null ? `${Number(lastScored.avg_prediction_error).toFixed(2)} MAE` : 'Score after a completed GW'} />
                 <Metric icon={latestSync ? CheckCircle2 : Activity} label="Data freshness" value={latestSync ? formatTimeSince(latestSync) : 'Not synced'} detail={predictionStatus?.completed_at ? `Model ${formatTimeSince(predictionStatus.completed_at)}` : 'Sync before the deadline'} />
               </div>
 
-              <div className="grid gap-5 lg:grid-cols-[240px,minmax(0,1fr)]">
+              <div className="edge-workspace">
                 <WorkspaceNavigation active={activeView} onChange={changeView} />
-                <section className="min-w-0">
+                <section className="edge-content">
                   <Suspense fallback={<WorkspaceSkeleton />}>
                     {renderWorkspace({
                     view: activeView,
@@ -236,7 +233,7 @@ const Index = () => {
       </main>
 
       <footer className="mt-8 border-t border-border/60 bg-card/60 py-6">
-        <div className="container flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="edge-frame flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <span>FPL Edge · Explainable fantasy decision support</span>
           <span>Official FPL data · Projections are probabilistic, not guarantees</span>
         </div>
@@ -277,12 +274,11 @@ function renderWorkspace({ view, selectedGameweekId, gameweeks, predictions, opt
 
 function Metric({ icon: Icon, label, value, detail }: { icon: typeof Trophy; label: string; value: string; detail: string }) {
   return (
-    <Card className="border-border/60 bg-card shadow-sm">
-      <CardContent className="flex items-start justify-between gap-3 p-4">
-        <div><p className="text-xs font-medium text-muted-foreground">{label}</p><p className="mt-1 font-display text-2xl font-bold tracking-tight">{value}</p><p className="mt-1 text-[11px] text-muted-foreground">{detail}</p></div>
-        <div className="rounded-xl bg-primary/10 p-2.5 text-primary"><Icon className="h-4 w-4" /></div>
-      </CardContent>
-    </Card>
+    <div className="edge-metric">
+      <p className="edge-metric-label"><Icon className="h-2.5 w-2.5" /> {label}</p>
+      <p className="edge-metric-value">{value}</p>
+      <p className="edge-metric-detail">{detail}</p>
+    </div>
   );
 }
 
