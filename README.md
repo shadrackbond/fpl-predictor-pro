@@ -1,53 +1,102 @@
-## Project info
+# FPL Edge
 
-**URL**: https://lovable.dev/projects/b3e2c5ef-1079-4a88-8685-d3be54517d51
+FPL Edge is an explainable Fantasy Premier League decision workspace. It combines official FPL data, an ensemble expected-points model, squad optimization, transfer planning, captaincy analysis, fixture difficulty, availability, price monitoring, mini-league tracking, and measured model performance.
 
-## How can I edit this code?
+## What changed in v2.0
 
-There are several ways of editing your applicatio
+- Replaced free-form AI point guesses with a deterministic, testable ensemble model.
+- Added expected minutes, availability probability, xG/xA per 90, team strength, venue, fixture difficulty, set pieces, saves, recent form, season rates, and official expected points.
+- Correctly handles blank and double gameweeks.
+- Calibrates future projections using measured historical bias by position.
+- Adds a prediction floor, ceiling, confidence score, risk level, fixture count, model version, and explainable component breakdown.
+- Replaced the greedy team picker with a valid £100m optimizer that enforces 2 GKP, 5 DEF, 5 MID, 3 FWD, and no more than three players per club.
+- Selects the strongest valid formation and adjusts captaincy for confidence and downside.
+- Uses MAE, RMSE, within-two-points rate, calibration bias, and a symmetric model score instead of the old unstable percentage formula.
+- Reorganized the interface into Squad, Analysis, Planning, and Performance workspaces.
+- Added projection filters, expandable drivers, CSV export, deep-linkable workspace URLs, and lazy-loaded views.
 
-**Use your preferred IDE**
+## Prediction model
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Each player projection blends four independent estimates:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+1. A component model for appearances, attacking returns, clean sheets, saves, and bonus.
+2. Recent FPL form, adjusted for expected minutes and fixture strength.
+3. Season points per 90, adjusted for the selected gameweek.
+4. The official FPL expected-points estimate as a low-weight reference.
 
-Follow these steps:
+The model then applies a conservative historical calibration adjustment. It is intentionally explainable: open any projection row to inspect its fixtures, expected minutes, risk flags, component values, and model version.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## Stack
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+- React 18, TypeScript, Vite, TanStack Query
+- Tailwind CSS and Radix UI
+- Supabase Auth, Postgres, and Edge Functions
+- Official Fantasy Premier League API
+- Recharts for model-performance visualization
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Local setup
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+Requirements: Node.js 20 LTS or newer, npm, a Supabase project, and the Supabase CLI for backend deployment.
+
+```bash
+npm ci
+cp .env.example .env
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Set these frontend variables in `.env`:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-key
+```
 
-**Use GitHub Codespaces**
+## Deploy the backend update
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Link the project and apply the new database columns before deploying the functions:
 
-## What technologies are used for this project?
+```bash
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+supabase functions deploy fetch-fpl-data
+supabase functions deploy generate-predictions
+supabase functions deploy update-actual-results
+```
 
-This project is built with:
+The projection engine no longer needs an LLM key. Other optional AI-assistant functions in the repository may still require the provider secret already used by the project.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+After deployment:
+
+1. Sign in to FPL Edge.
+2. Select **Sync FPL data** to populate the new availability and per-90 fields.
+3. Select the target gameweek.
+4. Select **Generate projections**.
+5. After a gameweek is officially finished, open **Model accuracy** and select **Score selected GW**.
+
+Scoring an unfinished gameweek is blocked because partial live scores would create misleading accuracy and calibration data.
+
+## Verification
+
+```bash
+npm run typecheck
+npm run test:model
+npm run build
+```
+
+The model verification covers blank gameweeks, doubles, unavailable players, prediction ranges, the £100m budget, position quotas, club limits, and starting-XI validity.
+
+## Important files
+
+- `supabase/functions/_shared/prediction-engine.ts` — pure projection and squad-optimization logic.
+- `supabase/functions/generate-predictions/index.ts` — database orchestration and calibration.
+- `supabase/functions/fetch-fpl-data/index.ts` — official FPL data ingestion.
+- `supabase/functions/update-actual-results/index.ts` — completed-gameweek scoring.
+- `supabase/migrations/20260812223000_prediction_engine_v2.sql` — v2 schema update.
+- `src/components/PredictionsTable.tsx` — projection decision table.
+- `src/components/AccuracyDashboard.tsx` — model monitoring.
+- `scripts/verify-prediction-engine.ts` — model regression checks.
+
+## Disclaimer
+
+FPL projections are probabilistic estimates, not guarantees. Late team news, tactical changes, postponed fixtures, and unexpected rotation can materially affect outcomes. Refresh official data close to the deadline.

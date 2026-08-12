@@ -1,643 +1,293 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import {
+  MODEL_VERSION,
+  projectPlayer,
+  selectOptimizedSquad,
+  selectStartingXI,
+  type CalibrationStats,
+  type PlayerProjection,
+  type ProjectionFixture,
+  type ProjectionPlayer,
+} from '../_shared/prediction-engine.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Input validation schema
 const requestSchema = z.object({
-  gameweek_id: z.number({
-    required_error: 'gameweek_id is required',
-    invalid_type_error: 'gameweek_id must be a number'
-  }).int({ message: 'gameweek_id must be an integer' }).positive({ message: 'gameweek_id must be positive' }).max(100, { message: 'gameweek_id must be 100 or less' }),
-  force_refresh: z.boolean().optional().default(false)
+  gameweek_id: z.number().int().positive().max(100),
+  force_refresh: z.boolean().optional().default(false),
 });
 
-// Cache duration in hours
-const CACHE_HOURS = 6;
-
-// Batch size for player processing - 30 players per AI call balances speed vs accuracy
-const BATCH_SIZE = 30;
-
-// Delay between AI calls in ms to avoid rate limits
-const CALL_DELAY_MS = 150;
+const CACHE_HOURS = 4;
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+  let requestedGameweekId: number | null = null;
 
   try {
-    const body = await req.json();
-    
-    // Validate input
-    const parseResult = requestSchema.safeParse(body);
-    if (!parseResult.success) {
-      console.error('Validation error:', parseResult.error.errors);
-      return new Response(JSON.stringify({ 
-        error: 'Invalid input', 
-        details: parseResult.error.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-    
-    const { gameweek_id, force_refresh } = parseResult.data;
-    
-    console.log(`Generating predictions for gameweek: ${gameweek_id}, force_refresh: ${force_refresh}`);
-
-    // Check for cached predictions (skip if force refresh)
-    if (!force_refresh) {
-      const { data: existingSync } = await supabase
-        .from('prediction_sync_status')
-        .select('*')
-        .eq('gameweek_id', gameweek_id)
-        .single();
-
-      if (existingSync?.status === 'completed' && existingSync.completed_at) {
-        const completedTime = new Date(existingSync.completed_at).getTime();
-        const cacheExpiry = CACHE_HOURS * 60 * 60 * 1000;
-        const now = Date.now();
-
-        if (now - completedTime < cacheExpiry) {
-          console.log(`Using cached predictions from ${existingSync.completed_at}`);
-          
-          // Return existing predictions
-          const { data: optimalTeam } = await supabase
-            .from('optimal_teams')
-            .select('*')
-            .eq('gameweek_id', gameweek_id)
-            .maybeSingle();
-
-          return new Response(JSON.stringify({
-            success: true,
-            cached: true,
-            completed_at: existingSync.completed_at,
-            predictions_count: existingSync.total_processed,
-            optimal_team: optimalTeam,
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-      }
-
-      // Check if already processing
-      if (existingSync?.status === 'processing') {
-        const startedTime = new Date(existingSync.started_at).getTime();
-        const processingTimeout = 15 * 60 * 1000; // 15 minutes timeout
-        const timeSinceStart = Date.now() - startedTime;
-        
-        // If processing for too long, reset and allow new generation
-        if (timeSinceStart > processingTimeout) {
-          console.warn(`Previous prediction generation timed out after ${Math.round(timeSinceStart / 60000)} minutes. Resetting status.`);
-          // Reset the status so we can try again
-          await supabase
-            .from('prediction_sync_status')
-            .update({
-              status: 'failed',
-              error_message: `Prediction generation timed out after ${Math.round(timeSinceStart / 60000)} minutes`,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('gameweek_id', gameweek_id);
-        } else {
-          // Still processing, return status
-          return new Response(JSON.stringify({
-            success: true,
-            status: 'processing',
-            progress: existingSync.total_players > 0 
-              ? Math.round((existingSync.total_processed / existingSync.total_players) * 100)
-              : 0,
-            message: 'Predictions are currently being generated'
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-      }
+    const parsed = requestSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return json({ error: 'Invalid input', details: parsed.error.flatten() }, 400);
     }
 
-    // Get gameweek info
-    const { data: gameweek } = await supabase
-      .from('gameweeks')
+    const { gameweek_id, force_refresh } = parsed.data;
+    requestedGameweekId = gameweek_id;
+
+    const { data: existingSync } = await supabase
+      .from('prediction_sync_status')
       .select('*')
-      .eq('id', gameweek_id)
-      .single();
+      .eq('gameweek_id', gameweek_id)
+      .maybeSingle();
 
-    if (!gameweek) {
-      throw new Error('Gameweek not found');
+    if (!force_refresh && existingSync?.status === 'completed' && existingSync.completed_at && existingSync.model_version === MODEL_VERSION) {
+      const cacheAge = Date.now() - new Date(existingSync.completed_at).getTime();
+      if (cacheAge < CACHE_HOURS * 60 * 60 * 1000) {
+        return json({
+          success: true,
+          cached: true,
+          completed_at: existingSync.completed_at,
+          predictions_count: existingSync.total_processed,
+          model_version: MODEL_VERSION,
+        });
+      }
     }
 
-    // Get all players with their team info
-    const { data: players } = await supabase
-      .from('players')
-      .select(`
-        *,
-        teams:team_id (name, short_name, strength_overall)
-      `)
-      .order('total_points', { ascending: false });
-
-    if (!players || players.length === 0) {
-      throw new Error('No players found');
+    if (!force_refresh && existingSync?.status === 'processing') {
+      const age = Date.now() - new Date(existingSync.updated_at || existingSync.started_at).getTime();
+      if (age < 3 * 60 * 1000) {
+        return json({
+          success: true,
+          status: 'processing',
+          progress: existingSync.total_players > 0
+            ? Math.round(existingSync.total_processed / existingSync.total_players * 100)
+            : 0,
+          model_version: existingSync.model_version || MODEL_VERSION,
+        });
+      }
     }
 
-    // Split into AI-processed players (have played minutes) and fallback-only players
-    // This avoids burning edge function time on benchmark/non-playing players
-    const activePlayers = players.filter((p: any) => (p.minutes || 0) > 0 || (p.selected_by_percent || 0) > 0.5);
-    const inactivePlayers = players.filter((p: any) => (p.minutes || 0) === 0 && (p.selected_by_percent || 0) <= 0.5);
-    console.log(`Players: ${activePlayers.length} active (AI), ${inactivePlayers.length} inactive (fallback)`);
-
-    // Get fixtures for this gameweek
-    const { data: fixtures } = await supabase
-      .from('fixtures')
-      .select(`
+    const [{ data: gameweek }, { data: players, error: playersError }, { data: fixtures, error: fixturesError }] = await Promise.all([
+      supabase.from('gameweeks').select('*').eq('id', gameweek_id).single(),
+      supabase.from('players').select(`
         *,
-        home_team:home_team_id (id, name, short_name),
-        away_team:away_team_id (id, name, short_name)
-      `)
-      .eq('gameweek_id', gameweek_id);
+        teams:team_id (
+          id, short_name, strength_attack_home, strength_attack_away,
+          strength_defence_home, strength_defence_away
+        )
+      `),
+      supabase.from('fixtures').select(`
+        *,
+        home_team:home_team_id (
+          id, short_name, strength_attack_home, strength_attack_away,
+          strength_defence_home, strength_defence_away
+        ),
+        away_team:away_team_id (
+          id, short_name, strength_attack_home, strength_attack_away,
+          strength_defence_home, strength_defence_away
+        )
+      `).eq('gameweek_id', gameweek_id),
+    ]);
 
-    // Create a map of team fixtures and difficulties
-    const teamFixtures = new Map<number, { opponent: string; difficulty: number; isHome: boolean }>();
-    fixtures?.forEach((f: any) => {
-      teamFixtures.set(f.home_team_id, {
-        opponent: f.away_team?.short_name || 'TBD',
-        difficulty: f.home_team_difficulty || 3,
-        isHome: true
-      });
-      teamFixtures.set(f.away_team_id, {
-        opponent: f.home_team?.short_name || 'TBD',
-        difficulty: f.away_team_difficulty || 3,
-        isHome: false
-      });
-    });
+    if (!gameweek) throw new Error('Gameweek not found');
+    if (playersError) throw playersError;
+    if (fixturesError) throw fixturesError;
+    if (!players?.length) throw new Error('No player data found. Sync FPL data first.');
 
-    // Initialize or update sync status
-    await supabase
-      .from('prediction_sync_status')
-      .upsert({
-        gameweek_id,
-        status: 'processing',
-        total_players: players.length,
-        total_processed: 0,
-        last_player_index: 0,
-        started_at: new Date().toISOString(),
-        completed_at: null,
-        error_message: null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'gameweek_id' });
+    await supabase.from('prediction_sync_status').upsert({
+      gameweek_id,
+      status: 'processing',
+      total_players: players.length,
+      total_processed: 0,
+      last_player_index: 0,
+      started_at: new Date().toISOString(),
+      completed_at: null,
+      error_message: null,
+      model_version: MODEL_VERSION,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'gameweek_id' });
 
-    // Generate fallback predictions immediately for inactive players (no AI needed)
-    const inactivePredictions = inactivePlayers.map((p: any) => {
-      const fixture = teamFixtures.get(p.team_id);
-      return {
-        player_id: p.id,
-        gameweek_id,
-        predicted_points: 2,
-        fixture_difficulty: fixture?.difficulty || 3,
-        form_factor: 0,
-        ai_analysis: 'No minutes played this season (fallback prediction).',
-      };
-    });
+    const fixtureMap = createFixtureMap(fixtures || []);
+    const calibration = await loadCalibration(supabase, gameweek_id);
+    const completedGameweeks = Math.max(1, Number(gameweek.fpl_id) - 1);
+    const projections: Array<ProjectionPlayer & PlayerProjection> = [];
 
-    if (inactivePredictions.length > 0) {
-      await supabase
+    for (const player of players as ProjectionPlayer[]) {
+      const playerFixtures = fixtureMap.get(player.team_id) || [];
+      const positionCalibration = calibration.get(player.position) || calibration.get('ALL') || { bias: 0, mae: 2.4, samples: 0 };
+      projections.push({ ...player, ...projectPlayer(player, playerFixtures, completedGameweeks, positionCalibration) });
+    }
+
+    const predictionRows = projections.map(projection => ({
+      player_id: projection.player_id,
+      gameweek_id,
+      predicted_points: projection.predicted_points,
+      predicted_floor: projection.predicted_floor,
+      predicted_ceiling: projection.predicted_ceiling,
+      expected_minutes: projection.expected_minutes,
+      confidence: projection.confidence,
+      risk_level: projection.risk_level,
+      fixture_difficulty: projection.fixture_difficulty,
+      fixture_count: projection.fixture_count,
+      form_factor: projection.form_factor,
+      model_version: projection.model_version,
+      prediction_factors: projection.prediction_factors,
+      ai_analysis: projection.analysis,
+      actual_points: null,
+      prediction_accuracy: null,
+      updated_at: new Date().toISOString(),
+    }));
+
+    for (let index = 0; index < predictionRows.length; index += 150) {
+      const batch = predictionRows.slice(index, index + 150);
+      const { error } = await supabase
         .from('player_predictions')
-        .upsert(inactivePredictions, { onConflict: 'player_id,gameweek_id' });
-    }
+        .upsert(batch, { onConflict: 'player_id,gameweek_id' });
+      if (error) throw error;
 
-    // Process active players in batches via AI
-    const predictions: any[] = [...inactivePredictions];
-    let processedCount = inactivePlayers.length;
-
-    // Update progress to reflect inactive players already done
-    await supabase
-      .from('prediction_sync_status')
-      .update({ total_processed: processedCount, updated_at: new Date().toISOString() })
-      .eq('gameweek_id', gameweek_id);
-    
-    for (let i = 0; i < activePlayers.length; i += BATCH_SIZE) {
-      const batch = activePlayers.slice(i, i + BATCH_SIZE);
-      const batchPredictions = await processBatch(
-        batch, 
-        teamFixtures, 
-        gameweek, 
-        gameweek_id, 
-        lovableApiKey
-      );
-      
-      predictions.push(...batchPredictions);
-      processedCount += batch.length;
-      
-      // Update progress
-      await supabase
-        .from('prediction_sync_status')
-        .update({
-          total_processed: processedCount,
-          last_player_index: i + batch.length,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('gameweek_id', gameweek_id);
-      
-      // Save predictions incrementally to avoid data loss
-      if (batchPredictions.length > 0) {
-        const { error: predError } = await supabase
-          .from('player_predictions')
-          .upsert(batchPredictions, { onConflict: 'player_id,gameweek_id' });
-        
-        if (predError) {
-          console.error('Batch predictions upsert error:', predError);
-        }
-      }
-
-      // Add delay between batches to avoid rate limits
-      if (i + BATCH_SIZE < activePlayers.length) {
-        await delay(CALL_DELAY_MS);
-      }
-    }
-
-    console.log(`Processed ${predictions.length} predictions`);
-
-    // Generate optimal team (without AI call to save tokens)
-    const optimalTeam = await generateOptimalTeam(supabase, gameweek_id, predictions);
-
-    // Mark as completed
-    await supabase
-      .from('prediction_sync_status')
-      .update({
-        status: 'completed',
-        completed_at: new Date().toISOString(),
+      await supabase.from('prediction_sync_status').update({
+        total_processed: Math.min(index + batch.length, predictionRows.length),
+        last_player_index: Math.min(index + batch.length, predictionRows.length),
         updated_at: new Date().toISOString(),
-      })
-      .eq('gameweek_id', gameweek_id);
+      }).eq('gameweek_id', gameweek_id);
+    }
 
-    return new Response(JSON.stringify({
+    const optimalTeam = await generateOptimalTeam(supabase, gameweek_id, projections);
+    await supabase.from('prediction_sync_status').update({
+      status: 'completed',
+      total_processed: predictionRows.length,
+      completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('gameweek_id', gameweek_id);
+
+    return json({
       success: true,
       cached: false,
-      predictions_count: predictions.length,
+      predictions_count: predictionRows.length,
+      model_version: MODEL_VERSION,
       optimal_team: optimalTeam,
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-
   } catch (error) {
-    console.error('Error in generate-predictions:', error);
-    
-    // Update sync status with error
-    try {
-      const body = await req.clone().json();
-      if (body.gameweek_id) {
-        await supabase
-          .from('prediction_sync_status')
-          .update({
-            status: 'failed',
-            error_message: error instanceof Error ? error.message : 'Unknown error',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('gameweek_id', body.gameweek_id);
-      }
-    } catch (e) {
-      // Ignore errors updating status
+    console.error('Prediction generation failed:', error);
+    if (requestedGameweekId) {
+      await supabase.from('prediction_sync_status').upsert({
+        gameweek_id: requestedGameweekId,
+        status: 'failed',
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+        model_version: MODEL_VERSION,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'gameweek_id' });
     }
-
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return json({ error: error instanceof Error ? error.message : 'Unknown error' }, 500);
   }
 });
 
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 }
 
-async function processBatch(
-  batch: any[],
-  teamFixtures: Map<number, { opponent: string; difficulty: number; isHome: boolean }>,
-  gameweek: any,
-  gameweek_id: number,
-  apiKey: string
-): Promise<any[]> {
-  const playerData = batch.map((p: any) => {
-    const fixture = teamFixtures.get(p.team_id);
-    return {
-      id: p.id,
-      name: p.web_name,
-      position: p.position,
-      team: p.teams?.short_name,
-      price: p.price,
-      form: p.form,
-      total_points: p.total_points,
-      minutes: p.minutes,
-      goals: p.goals_scored,
-      assists: p.assists,
-      clean_sheets: p.clean_sheets,
-      bonus: p.bonus,
-      selected_by: p.selected_by_percent,
-      status: p.status,
-      xG: p.expected_goals,
-      xA: p.expected_assists,
-      fixture_difficulty: fixture?.difficulty || 3,
-      opponent: fixture?.opponent || 'TBD',
-      is_home: fixture?.isHome ?? true,
-    };
-  });
+function createFixtureMap(fixtures: any[]): Map<number, ProjectionFixture[]> {
+  const map = new Map<number, ProjectionFixture[]>();
+  const append = (teamId: number, fixture: ProjectionFixture) => {
+    map.set(teamId, [...(map.get(teamId) || []), fixture]);
+  };
 
-  const prompt = `You are an FPL (Fantasy Premier League) expert analyst. Analyze these players and predict their expected points for ${gameweek.name}.
-
-Consider these factors:
-1. Recent form (higher form = better recent performances)
-2. Fixture difficulty (1-5 scale, 1 is easiest)
-3. Home/Away advantage
-4. Position (GKP can get clean sheet points, attackers get goal/assist points)
-5. Minutes played (low minutes = rotation risk)
-6. Status (a=available, d=doubtful, i=injured)
-7. Expected goals (xG) and expected assists (xA) for attackers
-8. Bonus point potential
-
-Players data:
-${JSON.stringify(playerData, null, 2)}
-
-Return a JSON array with predictions for each player. Each object must have:
-- id: player id
-- predicted_points: expected FPL points (realistic range 0-15, most players 2-6)
-- brief_analysis: 1-2 sentence analysis
-
-Only return the JSON array, no other text.`;
-
-  try {
-    // Use cheaper model for bulk predictions to save costs
-    console.log(`Processing batch of ${batch.length} players with AI...`);
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.warn(`AI API call timeout after 60s for batch of ${batch.length} players`);
-      controller.abort();
-    }, 60000); // 60 second timeout
-    
-    let aiResponse;
-    try {
-      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash-lite', // Cheaper model for bulk predictions
-          messages: [
-            { role: 'system', content: 'You are an FPL expert. Always respond with valid JSON arrays only.' },
-            { role: 'user', content: prompt }
-          ],
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-    } catch (fetchErr: any) {
-      clearTimeout(timeoutId);
-      if (fetchErr?.name === 'AbortError' || fetchErr?.message?.includes('abort')) {
-        console.error(`AI API call timed out after 60s`);
-        // Use fallback predictions on timeout
-        return batch.map((p: any) => {
-          const fixture = teamFixtures.get(p.team_id);
-          const basePts = p.form * 0.5 + (p.total_points / Math.max(1, p.minutes / 90)) * 0.3;
-          const difficultyFactor = (6 - (fixture?.difficulty || 3)) / 5;
-          return {
-            player_id: p.id,
-            gameweek_id,
-            predicted_points: Math.round((basePts * difficultyFactor + 2) * 10) / 10,
-            fixture_difficulty: fixture?.difficulty || 3,
-            form_factor: p.form / 10,
-            ai_analysis: `Form: ${p.form}, Fixture difficulty: ${fixture?.difficulty || 3} (timeout fallback)`,
-          };
-        });
-      }
-      throw fetchErr;
-    }
-
-    if (!aiResponse.ok) {
-      const status = aiResponse.status;
-      console.error(`AI API error: ${status}`);
-      
-      // Handle rate limits and payment errors
-      if (status === 429 || status === 402) {
-        console.log(`Rate limited or payment required, using fallback predictions`);
-      }
-      
-      // Fallback to basic prediction
-      return batch.map((p: any) => {
-        const fixture = teamFixtures.get(p.team_id);
-        const basePts = p.form * 0.5 + (p.total_points / Math.max(1, p.minutes / 90)) * 0.3;
-        const difficultyFactor = (6 - (fixture?.difficulty || 3)) / 5;
-        return {
-          player_id: p.id,
-          gameweek_id,
-          predicted_points: Math.round((basePts * difficultyFactor + 2) * 10) / 10,
-          fixture_difficulty: fixture?.difficulty || 3,
-          form_factor: p.form / 10,
-          ai_analysis: `Form: ${p.form}, Fixture difficulty: ${fixture?.difficulty || 3} (fallback prediction)`,
-        };
-      });
-    }
-
-    const aiData = await aiResponse.json();
-    const content = aiData.choices?.[0]?.message?.content || '[]';
-    
-    // Parse AI response
-    let aiPredictions: any[] = [];
-    try {
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        aiPredictions = JSON.parse(jsonMatch[0]);
-      }
-    } catch (parseError) {
-      console.error('Error parsing AI response:', parseError);
-    }
-
-    // Map AI predictions back to players
-    return batch.map((p: any) => {
-      const fixture = teamFixtures.get(p.team_id);
-      const aiPred = aiPredictions.find((pred: any) => pred.id === p.id);
-      
-      if (aiPred) {
-        return {
-          player_id: p.id,
-          gameweek_id,
-          predicted_points: Math.max(0, Math.min(20, aiPred.predicted_points || 2)),
-          fixture_difficulty: fixture?.difficulty || 3,
-          form_factor: p.form / 10,
-          ai_analysis: aiPred.brief_analysis || '',
-        };
-      } else {
-        // Fallback calculation
-        const basePts = p.form * 0.5 + 2;
-        const difficultyFactor = (6 - (fixture?.difficulty || 3)) / 5;
-        return {
-          player_id: p.id,
-          gameweek_id,
-          predicted_points: Math.round(basePts * difficultyFactor * 10) / 10,
-          fixture_difficulty: fixture?.difficulty || 3,
-          form_factor: p.form / 10,
-          ai_analysis: 'Basic prediction based on form and fixture.',
-        };
-      }
+  for (const fixture of fixtures) {
+    append(fixture.home_team_id, {
+      opponent: fixture.away_team?.short_name || 'TBD',
+      difficulty: fixture.home_team_difficulty || 3,
+      isHome: true,
+      opponentAttack: fixture.away_team?.strength_attack_away || 1100,
+      opponentDefence: fixture.away_team?.strength_defence_away || 1100,
     });
-
-  } catch (batchError) {
-    console.error('Batch processing error:', batchError);
-    
-    // Return fallback predictions for the entire batch
-    return batch.map((p: any) => {
-      const fixture = teamFixtures.get(p.team_id);
-      return {
-        player_id: p.id,
-        gameweek_id,
-        predicted_points: Math.max(2, p.form * 0.6),
-        fixture_difficulty: fixture?.difficulty || 3,
-        form_factor: p.form / 10,
-        ai_analysis: 'Fallback prediction due to processing error.',
-      };
+    append(fixture.away_team_id, {
+      opponent: fixture.home_team?.short_name || 'TBD',
+      difficulty: fixture.away_team_difficulty || 3,
+      isHome: false,
+      opponentAttack: fixture.home_team?.strength_attack_home || 1100,
+      opponentDefence: fixture.home_team?.strength_defence_home || 1100,
     });
   }
+  return map;
+}
+
+async function loadCalibration(supabase: any, gameweekId: number): Promise<Map<string, CalibrationStats>> {
+  const { data, error } = await supabase
+    .from('player_predictions')
+    .select('predicted_points, actual_points, player:player_id(position)')
+    .lt('gameweek_id', gameweekId)
+    .not('actual_points', 'is', null)
+    .order('gameweek_id', { ascending: false })
+    .limit(1000);
+
+  if (error || !data?.length) return new Map();
+  const buckets = new Map<string, Array<{ predicted: number; actual: number }>>();
+  for (const row of data) {
+    const position = Array.isArray(row.player) ? row.player[0]?.position : row.player?.position;
+    const observation = { predicted: Number(row.predicted_points), actual: Number(row.actual_points) };
+    buckets.set(position || 'ALL', [...(buckets.get(position || 'ALL') || []), observation]);
+    buckets.set('ALL', [...(buckets.get('ALL') || []), observation]);
+  }
+
+  const result = new Map<string, CalibrationStats>();
+  for (const [key, rows] of buckets) {
+    const errors = rows.map(row => row.actual - row.predicted);
+    result.set(key, {
+      bias: errors.reduce((sum, errorValue) => sum + errorValue, 0) / errors.length,
+      mae: errors.reduce((sum, errorValue) => sum + Math.abs(errorValue), 0) / errors.length,
+      samples: errors.length,
+    });
+  }
+  return result;
 }
 
 async function generateOptimalTeam(
-  supabase: any, 
-  gameweek_id: number, 
-  predictions: any[]
+  supabase: any,
+  gameweekId: number,
+  projections: Array<ProjectionPlayer & PlayerProjection>,
 ) {
-  // Get player details
-  const { data: players } = await supabase
-    .from('players')
-    .select('id, web_name, position, price, team_id');
+  const squad = selectOptimizedSquad(projections);
+  if (squad.length !== 15) throw new Error('Could not build a valid 15-player squad within the £100m budget.');
 
-  const playerMap = new Map(players?.map((p: any) => [p.id, p]) || []);
-  
-  // Enrich predictions with player data
-  const enrichedPreds = predictions.map(pred => {
-    const playerData = playerMap.get(pred.player_id);
-    return {
-      ...pred,
-      ...(playerData || {}),
-    };
+  const starting = selectStartingXI(squad);
+  const captainCandidates = [...starting.players].sort((a, b) => {
+    const aScore = a.predicted_points * (0.65 + a.confidence / 250) + a.predicted_floor * 0.15;
+    const bScore = b.predicted_points * (0.65 + b.confidence / 250) + b.predicted_floor * 0.15;
+    return bScore - aScore;
   });
+  const captain = captainCandidates[0];
+  const viceCaptain = captainCandidates[1];
+  const totalPredicted = starting.total + (captain?.predicted_points || 0);
+  const averageConfidence = starting.players.reduce((sum, player) => sum + player.confidence, 0) / 11;
+  const rating = Math.round(Math.min(98, Math.max(35, 35 + totalPredicted * 0.55 + averageConfidence * 0.25)));
+  const squadCost = squad.reduce((sum, player) => sum + player.price, 0);
 
-  // Group by position
-  const byPosition: Record<string, any[]> = { GKP: [], DEF: [], MID: [], FWD: [] };
-  enrichedPreds.forEach(p => {
-    if (byPosition[p.position]) {
-      byPosition[p.position].push(p);
-    }
-  });
-
-  // Sort each position by predicted points
-  Object.values(byPosition).forEach(arr => arr.sort((a, b) => b.predicted_points - a.predicted_points));
-
-  // Simple greedy selection for optimal 15-player squad
-  const BUDGET = 100;
-  const squad: any[] = [];
-  let totalCost = 0;
-  const teamCounts: Record<number, number> = {};
-
-  const canAdd = (player: any) => {
-    if (totalCost + player.price > BUDGET) return false;
-    if ((teamCounts[player.team_id] || 0) >= 3) return false;
-    return true;
-  };
-
-  const addPlayer = (player: any) => {
-    squad.push(player);
-    totalCost += player.price;
-    teamCounts[player.team_id] = (teamCounts[player.team_id] || 0) + 1;
-  };
-
-  // Select 2 GKP, 5 DEF, 5 MID, 3 FWD
-  const quotas: Record<string, number> = { GKP: 2, DEF: 5, MID: 5, FWD: 3 };
-
-  for (const [pos, quota] of Object.entries(quotas)) {
-    let added = 0;
-    for (const player of byPosition[pos]) {
-      if (added >= quota) break;
-      if (canAdd(player)) {
-        addPlayer(player);
-        added++;
-      }
-    }
-  }
-
-  // Select starting XI (best 11 with valid formation)
-  const squadByPos: Record<string, any[]> = { GKP: [], DEF: [], MID: [], FWD: [] };
-  squad.forEach(p => squadByPos[p.position]?.push(p));
-
-  // Sort by predicted points within squad
-  Object.values(squadByPos).forEach(arr => arr.sort((a, b) => b.predicted_points - a.predicted_points));
-
-  // Start with minimum formation: 1-3-3-1
-  const startingXI: any[] = [
-    squadByPos.GKP[0],
-    ...squadByPos.DEF.slice(0, 3),
-    ...squadByPos.MID.slice(0, 3),
-    squadByPos.FWD[0],
-  ].filter(Boolean);
-
-  // Fill remaining 3 spots with best available
-  const remaining = [
-    ...squadByPos.DEF.slice(3),
-    ...squadByPos.MID.slice(3),
-    ...squadByPos.FWD.slice(1),
-  ].filter(Boolean).sort((a, b) => b.predicted_points - a.predicted_points);
-
-  for (const player of remaining) {
-    if (startingXI.length >= 11) break;
-    startingXI.push(player);
-  }
-
-  // Determine formation
-  const xiByPos = { GKP: 0, DEF: 0, MID: 0, FWD: 0 };
-  startingXI.forEach(p => xiByPos[p.position as keyof typeof xiByPos]++);
-  const formation = `${xiByPos.DEF}-${xiByPos.MID}-${xiByPos.FWD}`;
-
-  // Captain and vice captain (highest predicted points)
-  const sortedXI = [...startingXI].sort((a, b) => b.predicted_points - a.predicted_points);
-  const captain = sortedXI[0];
-  const viceCaptain = sortedXI[1];
-
-  // Calculate total predicted points (captain counts double)
-  let totalPredicted = startingXI.reduce((sum, p) => sum + p.predicted_points, 0);
-  totalPredicted += captain?.predicted_points || 0; // Captain bonus
-
-  // Calculate team rating (based on historical context, max realistic is ~150 pts)
-  const rating = Math.min(100, Math.round((totalPredicted / 100) * 100));
-
-  // Generate template-based analysis (no AI call to save tokens)
-  const topPlayers = sortedXI.slice(0, 3).map(p => p.web_name).join(', ');
-  const analysis = `Optimal team for ${formation} formation. Captain: ${captain?.web_name} with ${captain?.predicted_points?.toFixed(1)} predicted points. Key players: ${topPlayers}. Total predicted: ${totalPredicted.toFixed(1)} points.`;
-
-  // Save optimal team
   const optimalTeam = {
-    gameweek_id,
-    player_ids: squad.map(p => p.id),
-    starting_xi: startingXI.map(p => p.id),
+    gameweek_id: gameweekId,
+    player_ids: squad.map(player => player.id),
+    starting_xi: starting.players.map(player => player.id),
     captain_id: captain?.id,
     vice_captain_id: viceCaptain?.id,
-    total_predicted_points: totalPredicted,
+    total_predicted_points: Math.round(totalPredicted * 10) / 10,
     team_rating: rating,
-    formation,
-    analysis,
+    formation: starting.formation,
+    analysis: `${starting.formation} maximizes projected points inside a £${squadCost.toFixed(1)}m valid squad. ${captain?.web_name} is captain based on expected points, floor and confidence; ${viceCaptain?.web_name} is vice-captain. Model: ${MODEL_VERSION}.`,
+    updated_at: new Date().toISOString(),
   };
 
-  await supabase
-    .from('optimal_teams')
-    .upsert(optimalTeam, { onConflict: 'gameweek_id' });
-
+  const { error } = await supabase.from('optimal_teams').upsert(optimalTeam, { onConflict: 'gameweek_id' });
+  if (error) throw error;
   return optimalTeam;
 }

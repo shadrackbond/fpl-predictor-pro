@@ -30,6 +30,15 @@ export interface Player {
   selected_by_percent: number;
   status: string;
   photo: string | null;
+  chance_of_playing_next_round?: number | null;
+  news?: string | null;
+  points_per_game?: number | null;
+  starts?: number | null;
+  expected_goals_per_90?: number | null;
+  expected_assists_per_90?: number | null;
+  saves?: number | null;
+  ep_next?: number | null;
+  last_synced_at?: string | null;
   teams?: Team;
 }
 
@@ -61,6 +70,22 @@ export interface Fixture {
   away_team?: Team;
 }
 
+export interface PredictionFactors {
+  appearance?: number;
+  attacking?: number;
+  cleanSheet?: number;
+  saves?: number;
+  bonus?: number;
+  recentForm?: number;
+  seasonRate?: number;
+  officialEstimate?: number;
+  calibration?: number;
+  availability?: number;
+  fixtureCount?: number;
+  fixtures?: Array<{ opponent: string; difficulty: number; venue: 'H' | 'A' }>;
+  flags?: string[];
+}
+
 export interface PlayerPrediction {
   id: number;
   player_id: number;
@@ -69,6 +94,14 @@ export interface PlayerPrediction {
   fixture_difficulty: number | null;
   form_factor: number | null;
   ai_analysis: string | null;
+  predicted_floor?: number | null;
+  predicted_ceiling?: number | null;
+  expected_minutes?: number | null;
+  confidence?: number | null;
+  risk_level?: 'low' | 'medium' | 'high' | null;
+  fixture_count?: number | null;
+  model_version?: string | null;
+  prediction_factors?: PredictionFactors | null;
   player?: Player;
 }
 

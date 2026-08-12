@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -6,14 +6,11 @@ export function useGameweeks() {
   return useQuery({
     queryKey: ['gameweeks'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('gameweeks')
-        .select('*')
-        .order('fpl_id', { ascending: true });
-      
+      const { data, error } = await supabase.from('gameweeks').select('*').order('fpl_id');
       if (error) throw error;
       return data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -23,12 +20,12 @@ export function usePlayers() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('players')
-        .select(`*, teams:team_id (id, name, short_name)`)
+        .select('*, teams:team_id(id, name, short_name)')
         .order('total_points', { ascending: false });
-      
       if (error) throw error;
       return data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -37,23 +34,26 @@ export function usePredictions(gameweekId: number | null) {
     queryKey: ['predictions', gameweekId],
     queryFn: async () => {
       if (!gameweekId) return [];
-      
       const { data, error } = await supabase
         .from('player_predictions')
         .select(`
           *,
           player:player_id (
-            id, web_name, position, price, form, total_points, status,
+            id, fpl_id, first_name, second_name, web_name, team_id, position,
+            price, form, total_points, status, minutes, selected_by_percent,
+            chance_of_playing_next_round, news, last_synced_at,
             teams:team_id (id, name, short_name)
           )
         `)
         .eq('gameweek_id', gameweekId)
         .order('predicted_points', { ascending: false });
-      
       if (error) throw error;
+      // The generated database type lags nested relation inference; callers receive the runtime row shape above.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return data as any[];
     },
-    enabled: !!gameweekId,
+    enabled: Boolean(gameweekId),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -62,17 +62,15 @@ export function useOptimalTeam(gameweekId: number | null) {
     queryKey: ['optimal-team', gameweekId],
     queryFn: async () => {
       if (!gameweekId) return null;
-      
       const { data, error } = await supabase
         .from('optimal_teams')
         .select('*')
         .eq('gameweek_id', gameweekId)
         .maybeSingle();
-      
       if (error) throw error;
       return data;
     },
-    enabled: !!gameweekId,
+    enabled: Boolean(gameweekId),
   });
 }
 
@@ -81,7 +79,6 @@ export function useFixtures(gameweekId: number | null) {
     queryKey: ['fixtures', gameweekId],
     queryFn: async () => {
       if (!gameweekId) return [];
-      
       const { data, error } = await supabase
         .from('fixtures')
         .select(`
@@ -90,98 +87,66 @@ export function useFixtures(gameweekId: number | null) {
           away_team:teams!fixtures_away_team_id_fkey (id, name, short_name)
         `)
         .eq('gameweek_id', gameweekId)
-        .order('kickoff_time', { ascending: true });
-      
+        .order('kickoff_time');
       if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return data as any[];
     },
-    enabled: !!gameweekId,
+    enabled: Boolean(gameweekId),
   });
 }
 
 export function useFetchFPLData() {
   const queryClient = useQueryClient();
-  
   return useMutation({
     mutationFn: async () => {
       const response = await supabase.functions.invoke('fetch-fpl-data');
       if (response.error) throw response.error;
+      if (response.data?.error) throw new Error(response.data.error);
       return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['gameweeks'] });
       queryClient.invalidateQueries({ queryKey: ['players'] });
       queryClient.invalidateQueries({ queryKey: ['fixtures'] });
-      toast.success('FPL data updated successfully!');
+      queryClient.invalidateQueries({ queryKey: ['predictions'] });
+      toast.success('Official FPL data is up to date.');
     },
-    onError: (error) => {
-      console.error('Failed to fetch FPL data:', error);
-      toast.error('Failed to fetch FPL data');
-    },
+    onError: error => toast.error(error instanceof Error ? error.message : 'Failed to sync FPL data'),
   });
 }
 
 export function useGeneratePredictions() {
   const queryClient = useQueryClient();
-  
   return useMutation({
     mutationFn: async ({ gameweek_id, force_refresh = false }: { gameweek_id: number; force_refresh?: boolean }) => {
-      // Fire-and-forget: use AbortController with a short timeout
-      // The edge function will continue processing in the background
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s max wait
-      
-      try {
-        const response = await supabase.functions.invoke('generate-predictions', {
-          body: { gameweek_id, force_refresh },
-        });
-        clearTimeout(timeoutId);
-        if (response.error) throw response.error;
-        return response.data;
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        // If it's an abort/timeout, that's OK - the edge function is still running
-        if (err?.name === 'AbortError' || err?.message?.includes('timed out') || err?.message?.includes('aborted')) {
-          return { status: 'processing', message: 'Predictions started generating' };
-        }
-        // For 5xx errors (edge function timeout), treat as processing
-        if (err?.status >= 500 || err?.message?.includes('non-2xx')) {
-          return { status: 'processing', message: 'Predictions are being generated in the background' };
-        }
-        throw err;
-      }
+      const response = await supabase.functions.invoke('generate-predictions', {
+        body: { gameweek_id, force_refresh },
+      });
+      if (response.error) throw response.error;
+      if (response.data?.error) throw new Error(response.data.error);
+      return response.data;
     },
     onSuccess: (data, { gameweek_id }) => {
-      // Always refresh prediction status to start polling
       queryClient.invalidateQueries({ queryKey: ['prediction-status', gameweek_id] });
-      
       if (data?.cached) {
         queryClient.invalidateQueries({ queryKey: ['predictions', gameweek_id] });
         queryClient.invalidateQueries({ queryKey: ['optimal-team', gameweek_id] });
-        toast.success('Using cached predictions (updated ' + formatRelativeTime(data.completed_at) + ')');
+        toast.success(`Using projections calculated ${relativeTime(data.completed_at)}.`);
       } else if (data?.status === 'processing') {
-        toast.info('Predictions are generating — this may take a few minutes. Progress will update automatically.');
+        toast.info('Projection refresh is already running.');
       } else {
         queryClient.invalidateQueries({ queryKey: ['predictions', gameweek_id] });
         queryClient.invalidateQueries({ queryKey: ['optimal-team', gameweek_id] });
-        toast.success('Predictions generated successfully!');
+        toast.success(`Predictions generated with ${data?.model_version || 'the latest model'}.`);
       }
     },
-    onError: (error) => {
-      console.error('Failed to generate predictions:', error);
-      toast.error('Failed to start prediction generation');
-    },
+    onError: error => toast.error(error instanceof Error ? error.message : 'Failed to calculate projections'),
   });
 }
 
-function formatRelativeTime(dateString: string): string {
+function relativeTime(dateString: string): string {
   if (!dateString) return 'recently';
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  
-  if (diffMins < 60) return `${diffMins}m ago`;
-  return `${diffHours}h ago`;
+  const minutes = Math.floor((Date.now() - new Date(dateString).getTime()) / 60_000);
+  return minutes < 60 ? `${Math.max(0, minutes)}m ago` : `${Math.floor(minutes / 60)}h ago`;
 }

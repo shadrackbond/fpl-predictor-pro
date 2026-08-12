@@ -1,208 +1,141 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Input validation schema
-const requestSchema = z.object({
-  gameweek_id: z.number({
-    required_error: 'gameweek_id is required',
-    invalid_type_error: 'gameweek_id must be a number'
-  }).int({ message: 'gameweek_id must be an integer' }).positive({ message: 'gameweek_id must be positive' }).max(100, { message: 'gameweek_id must be 100 or less' })
-});
+const requestSchema = z.object({ gameweek_id: z.number().int().positive().max(100) });
+const round = (value: number, digits = 1) => {
+  const power = 10 ** digits;
+  return Math.round(value * power) / power;
+};
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const parsed = requestSchema.safeParse(await req.json());
+    if (!parsed.success) return json({ error: 'Invalid gameweek id' }, 400);
 
-    const body = await req.json();
-    
-    // Validate input
-    const parseResult = requestSchema.safeParse(body);
-    if (!parseResult.success) {
-      console.error('Validation error:', parseResult.error.errors);
-      return new Response(JSON.stringify({ 
-        error: 'Invalid input', 
-        details: parseResult.error.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-    
-    const { gameweek_id } = parseResult.data;
-    console.log(`Updating actual results for gameweek: ${gameweek_id}`);
-
-    // Get gameweek info
-    const { data: gameweek, error: gwError } = await supabase
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+    const { gameweek_id } = parsed.data;
+    const { data: gameweek, error: gameweekError } = await supabase
       .from('gameweeks')
       .select('*')
       .eq('id', gameweek_id)
       .single();
 
-    if (gwError || !gameweek) {
-      throw new Error('Gameweek not found');
+    if (gameweekError || !gameweek) throw new Error('Gameweek not found');
+    if (!gameweek.finished) {
+      return json({ error: 'This gameweek is not finished. Sync FPL data after the final match before scoring the model.' }, 409);
     }
 
-    // Fetch live data from FPL API
     const liveResponse = await fetch(`https://fantasy.premierleague.com/api/event/${gameweek.fpl_id}/live/`);
-    if (!liveResponse.ok) {
-      throw new Error(`Failed to fetch live data: ${liveResponse.status}`);
-    }
+    if (!liveResponse.ok) throw new Error(`FPL live API returned ${liveResponse.status}`);
     const liveData = await liveResponse.json();
-    console.log(`Fetched live data for ${liveData.elements?.length || 0} players`);
 
-    // Get our players to map fpl_id to our id
-    const { data: players, error: playersError } = await supabase
-      .from('players')
-      .select('id, fpl_id');
+    const [{ data: players, error: playerError }, { data: predictions, error: predictionError }] = await Promise.all([
+      supabase.from('players').select('id, fpl_id'),
+      supabase.from('player_predictions').select('*').eq('gameweek_id', gameweek_id),
+    ]);
+    if (playerError) throw playerError;
+    if (predictionError) throw predictionError;
+    if (!predictions?.length) throw new Error('No predictions exist for this gameweek');
 
-    if (playersError) throw playersError;
+    const fplIdByPlayerId = new Map((players || []).map(player => [player.id, player.fpl_id]));
+    const pointsByFplId = new Map((liveData.elements || []).map((entry: any) => [entry.id, Number(entry.stats?.total_points || 0)]));
+    const scored = predictions.flatMap(prediction => {
+      const fplId = fplIdByPlayerId.get(prediction.player_id);
+      if (!fplId || !pointsByFplId.has(fplId)) return [];
+      const actual = Number(pointsByFplId.get(fplId));
+      const predicted = Number(prediction.predicted_points);
+      const symmetricScore = 100 * (1 - Math.abs(predicted - actual) / (Math.abs(predicted) + Math.abs(actual) + 2));
+      return [{
+        ...prediction,
+        actual_points: actual,
+        prediction_accuracy: round(Math.max(0, symmetricScore), 1),
+        updated_at: new Date().toISOString(),
+      }];
+    });
 
-    const playerMap = new Map(players.map(p => [p.fpl_id, p.id]));
-
-    // Get predictions for this gameweek
-    const { data: predictions, error: predError } = await supabase
-      .from('player_predictions')
-      .select('*')
-      .eq('gameweek_id', gameweek_id);
-
-    if (predError) throw predError;
-
-    // Update predictions with actual points
-    let updatedCount = 0;
-    let totalPredicted = 0;
-    let totalActual = 0;
-    let correctPredictions = 0;
-    let totalError = 0;
-
-    for (const prediction of predictions || []) {
-      const player = players.find(p => p.id === prediction.player_id);
-      if (!player) continue;
-
-      const livePlayer = liveData.elements.find((e: any) => e.id === player.fpl_id);
-      if (!livePlayer) continue;
-
-      const actualPoints = livePlayer.stats.total_points;
-      const predictedPoints = prediction.predicted_points;
-      const accuracy = predictedPoints > 0 
-        ? Math.max(0, 100 - Math.abs(predictedPoints - actualPoints) / predictedPoints * 100)
-        : (actualPoints === 0 ? 100 : 0);
-
-      await supabase
+    for (let index = 0; index < scored.length; index += 150) {
+      const { error } = await supabase
         .from('player_predictions')
-        .update({
-          actual_points: actualPoints,
-          prediction_accuracy: accuracy
-        })
-        .eq('id', prediction.id);
-
-      totalPredicted += predictedPoints;
-      totalActual += actualPoints;
-      totalError += Math.abs(predictedPoints - actualPoints);
-      
-      // Consider a prediction "correct" if within 2 points
-      if (Math.abs(predictedPoints - actualPoints) <= 2) {
-        correctPredictions++;
-      }
-      updatedCount++;
+        .upsert(scored.slice(index, index + 150), { onConflict: 'player_id,gameweek_id' });
+      if (error) throw error;
     }
 
-    console.log(`Updated ${updatedCount} predictions with actual points`);
+    const errors = scored.map(row => Number(row.actual_points) - Number(row.predicted_points));
+    const mae = errors.reduce((sum, errorValue) => sum + Math.abs(errorValue), 0) / errors.length;
+    const rmse = Math.sqrt(errors.reduce((sum, errorValue) => sum + errorValue ** 2, 0) / errors.length);
+    const bias = errors.reduce((sum, errorValue) => sum + errorValue, 0) / errors.length;
+    const correctPredictions = errors.filter(errorValue => Math.abs(errorValue) <= 2).length;
+    const withinTwoPercentage = correctPredictions / errors.length * 100;
+    const overallScore = scored.reduce((sum, row) => sum + Number(row.prediction_accuracy), 0) / scored.length;
+    const totalPredicted = scored.reduce((sum, row) => sum + Number(row.predicted_points), 0);
+    const totalActual = scored.reduce((sum, row) => sum + Number(row.actual_points), 0);
 
-    // Update optimal team with actual points
-    const { data: optimalTeam, error: otError } = await supabase
+    const { data: optimalTeam } = await supabase
       .from('optimal_teams')
       .select('*')
       .eq('gameweek_id', gameweek_id)
-      .single();
-
-    if (optimalTeam && !otError) {
-      // Calculate actual points for optimal team
-      let teamActualPoints = 0;
-      const startingXI = optimalTeam.starting_xi || [];
-      
-      for (const playerId of startingXI) {
-        const player = players.find(p => p.id === playerId);
-        if (!player) continue;
-        
-        const livePlayer = liveData.elements.find((e: any) => e.id === player.fpl_id);
-        if (!livePlayer) continue;
-        
-        let points = livePlayer.stats.total_points;
-        // Double captain points
-        if (playerId === optimalTeam.captain_id) {
-          points *= 2;
-        }
-        teamActualPoints += points;
-      }
-
-      const teamAccuracy = optimalTeam.total_predicted_points > 0
-        ? Math.max(0, 100 - Math.abs(optimalTeam.total_predicted_points - teamActualPoints) / optimalTeam.total_predicted_points * 100)
-        : 0;
-
-      await supabase
-        .from('optimal_teams')
-        .update({
-          actual_points: teamActualPoints,
-          accuracy_percentage: teamAccuracy,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', optimalTeam.id);
-
-      console.log(`Updated optimal team: predicted ${optimalTeam.total_predicted_points}, actual ${teamActualPoints}, accuracy ${teamAccuracy.toFixed(1)}%`);
+      .maybeSingle();
+    if (optimalTeam) {
+      const actualByPlayerId = new Map(scored.map(row => [row.player_id, Number(row.actual_points)]));
+      const teamActual = (optimalTeam.starting_xi || []).reduce((sum: number, playerId: number) => {
+        const points = actualByPlayerId.get(playerId) || 0;
+        return sum + points + (playerId === optimalTeam.captain_id ? points : 0);
+      }, 0);
+      const teamScore = 100 * (1 - Math.abs(Number(optimalTeam.total_predicted_points) - teamActual) /
+        (Math.abs(Number(optimalTeam.total_predicted_points)) + Math.abs(teamActual) + 2));
+      await supabase.from('optimal_teams').update({
+        actual_points: teamActual,
+        accuracy_percentage: round(Math.max(0, teamScore), 1),
+        updated_at: new Date().toISOString(),
+      }).eq('id', optimalTeam.id);
     }
 
-    // Update or create prediction history
-    const overallAccuracy = totalPredicted > 0
-      ? Math.max(0, 100 - totalError / totalPredicted * 100)
-      : 0;
-    const avgError = updatedCount > 0 ? totalError / updatedCount : 0;
-
-    const historyData = {
+    const { error: historyError } = await supabase.from('prediction_history').upsert({
       gameweek_id,
-      total_predicted_points: totalPredicted,
+      total_predicted_points: round(totalPredicted),
       total_actual_points: totalActual,
-      accuracy_percentage: overallAccuracy,
-      players_analyzed: updatedCount,
+      accuracy_percentage: round(overallScore, 1),
+      players_analyzed: scored.length,
       correct_predictions: correctPredictions,
-      avg_prediction_error: avgError,
-      updated_at: new Date().toISOString()
-    };
+      avg_prediction_error: round(mae, 2),
+      rmse: round(rmse, 2),
+      within_two_percentage: round(withinTwoPercentage, 1),
+      calibration_bias: round(bias, 2),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'gameweek_id' });
+    if (historyError) throw historyError;
 
-    await supabase
-      .from('prediction_history')
-      .upsert(historyData, { onConflict: 'gameweek_id' });
-
-    console.log(`Prediction history updated: accuracy ${overallAccuracy.toFixed(1)}%`);
-
-    return new Response(JSON.stringify({
+    return json({
       success: true,
-      updated_predictions: updatedCount,
-      accuracy_percentage: overallAccuracy,
+      updated_predictions: scored.length,
+      accuracy_percentage: round(overallScore, 1),
       correct_predictions: correctPredictions,
-      avg_prediction_error: avgError
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      within_two_percentage: round(withinTwoPercentage, 1),
+      avg_prediction_error: round(mae, 2),
+      rmse: round(rmse, 2),
+      calibration_bias: round(bias, 2),
     });
-
   } catch (error) {
-    console.error('Error updating actual results:', error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('Updating results failed:', error);
+    return json({ error: error instanceof Error ? error.message : 'Unknown error' }, 500);
   }
 });
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}

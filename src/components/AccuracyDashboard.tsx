@@ -2,312 +2,100 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  TrendingUp, 
-  Target, 
-  BarChart3, 
-  RefreshCw,
-  CheckCircle2,
-  XCircle,
-  Trophy,
-  Zap
-} from 'lucide-react';
-import { usePredictionHistory, useUpdateActualResults, useAllOptimalTeams } from '@/hooks/usePredictionHistory';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { BarChart3, CheckCircle2, RefreshCw, Scale, Target, TrendingUp, Trophy } from 'lucide-react';
+import { useModelPerformance, useScoreGameweek, useScoredOptimalTeams } from '@/hooks/useModelPerformance';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-interface AccuracyDashboardProps {
-  selectedGameweekId: number | null;
-}
+export function AccuracyDashboard({ selectedGameweekId }: { selectedGameweekId: number | null }) {
+  const { data: history, isLoading } = useModelPerformance();
+  const { data: optimalTeams } = useScoredOptimalTeams();
+  const updateResults = useScoreGameweek();
 
-export function AccuracyDashboard({ selectedGameweekId }: AccuracyDashboardProps) {
-  const { data: history, isLoading } = usePredictionHistory();
-  const { data: optimalTeams } = useAllOptimalTeams();
-  const updateResults = useUpdateActualResults();
+  if (isLoading) return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-32" />)}</div>;
 
-  const handleUpdateResults = () => {
-    if (selectedGameweekId) {
-      updateResults.mutate(selectedGameweekId);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {[...Array(4)].map((_, i) => (
-          <Skeleton key={i} className="h-32" />
-        ))}
-      </div>
-    );
-  }
-
-  // Calculate overall stats
-  const totalPredictions = history?.reduce((sum, h) => sum + (h.players_analyzed || 0), 0) || 0;
-  const totalCorrect = history?.reduce((sum, h) => sum + (h.correct_predictions || 0), 0) || 0;
-  const avgAccuracy = history && history.length > 0
-    ? history.reduce((sum, h) => sum + (h.accuracy_percentage || 0), 0) / history.length
+  const totalPredictions = history?.reduce((sum, row) => sum + (row.players_analyzed || 0), 0) || 0;
+  const totalCorrect = history?.reduce((sum, row) => sum + (row.correct_predictions || 0), 0) || 0;
+  const weightedScore = totalPredictions
+    ? (history || []).reduce((sum, row) => sum + Number(row.accuracy_percentage || 0) * row.players_analyzed, 0) / totalPredictions
     : 0;
-  const avgError = history && history.length > 0
-    ? history.reduce((sum, h) => sum + (h.avg_prediction_error || 0), 0) / history.length
+  const weightedMae = totalPredictions
+    ? (history || []).reduce((sum, row) => sum + Number(row.avg_prediction_error || 0) * row.players_analyzed, 0) / totalPredictions
     : 0;
-
-  // Prepare chart data
-  const chartData = history?.map(h => ({
-    gameweek: `GW${h.gameweek_id}`,
-    accuracy: h.accuracy_percentage || 0,
-    predicted: h.total_predicted_points || 0,
-    actual: h.total_actual_points || 0,
-  })).reverse() || [];
-
-  // Optimal team performance data
-  const teamChartData = optimalTeams?.filter(t => t.actual_points !== null).map(t => ({
-    gameweek: `GW${t.gameweek_id}`,
-    predicted: t.total_predicted_points,
-    actual: t.actual_points || 0,
-    accuracy: t.accuracy_percentage || 0,
-  })).reverse() || [];
+  const latestBias = history?.[0]?.calibration_bias;
+  const trend = (history || []).map(row => ({
+    gameweek: row.gameweek?.name || `GW${row.gameweek_id}`,
+    score: Number(row.accuracy_percentage || 0),
+    mae: Number(row.avg_prediction_error || 0),
+  })).reverse();
+  const teamTrend = (optimalTeams || []).filter(row => row.actual_points != null).map(row => ({
+    gameweek: row.gameweek?.name || `GW${row.gameweek_id}`,
+    predicted: Number(row.total_predicted_points),
+    actual: Number(row.actual_points),
+  })).reverse();
 
   return (
-    <div className="space-y-6">
-      {/* Header with Update Button */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Prediction Accuracy</h2>
-          <p className="text-muted-foreground">Track how well our AI predictions perform</p>
+          <h2 className="text-2xl font-bold tracking-tight">Model performance</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Score a completed gameweek, then use measured bias to calibrate future projections.</p>
         </div>
-        <Button
-          onClick={handleUpdateResults}
-          disabled={updateResults.isPending || !selectedGameweekId}
-          variant="outline"
-          className="gap-2"
-        >
-          <RefreshCw className={updateResults.isPending ? 'animate-spin' : ''} />
-          Update Results
+        <Button variant="outline" className="gap-2" disabled={!selectedGameweekId || updateResults.isPending} onClick={() => selectedGameweekId && updateResults.mutate(selectedGameweekId)}>
+          <RefreshCw className={updateResults.isPending ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} /> Score selected GW
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="glass border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Overall Accuracy
-            </CardTitle>
-            <Target className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gradient">
-              {avgAccuracy.toFixed(1)}%
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Average prediction accuracy
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Correct Predictions
-            </CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-fpl-green" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {totalCorrect}
-              <span className="text-lg text-muted-foreground">/{totalPredictions}</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Within 2 points of actual
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Avg Point Error
-            </CardTitle>
-            <XCircle className="h-4 w-4 text-fpl-red" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {avgError.toFixed(1)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Points off per player
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Gameweeks Analyzed
-            </CardTitle>
-            <BarChart3 className="h-4 w-4 text-fpl-blue" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {history?.length || 0}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Historical gameweeks tracked
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric icon={Target} label="Model score" value={`${weightedScore.toFixed(1)}%`} detail="Symmetric player-level score" />
+        <Metric icon={CheckCircle2} label="Within ±2 points" value={totalPredictions ? `${(totalCorrect / totalPredictions * 100).toFixed(1)}%` : '0%'} detail={`${totalCorrect} of ${totalPredictions} projections`} />
+        <Metric icon={Scale} label="Mean absolute error" value={weightedMae.toFixed(2)} detail="Average points missed; lower is better" />
+        <Metric icon={BarChart3} label="Latest bias" value={latestBias == null ? '—' : `${latestBias > 0 ? '+' : ''}${Number(latestBias).toFixed(2)}`} detail="Actual minus predicted" />
       </div>
 
-      {/* Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Accuracy Trend */}
-        <Card className="glass border-border/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Accuracy Trend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="accuracyGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis 
-                    dataKey="gameweek" 
-                    stroke="hsl(var(--muted-foreground))" 
-                    fontSize={12}
-                  />
-                  <YAxis 
-                    stroke="hsl(var(--muted-foreground))" 
-                    fontSize={12}
-                    domain={[0, 100]}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="accuracy" 
-                    stroke="hsl(var(--primary))" 
-                    fill="url(#accuracyGradient)"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[250px] flex items-center justify-center text-muted-foreground">
-                No accuracy data yet. Update results after gameweeks complete.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Optimal Team Performance */}
-        <Card className="glass border-border/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-accent" />
-              Optimal Team Performance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {teamChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={teamChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis 
-                    dataKey="gameweek" 
-                    stroke="hsl(var(--muted-foreground))" 
-                    fontSize={12}
-                  />
-                  <YAxis 
-                    stroke="hsl(var(--muted-foreground))" 
-                    fontSize={12}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Bar dataKey="predicted" name="Predicted" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="actual" name="Actual" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[250px] flex items-center justify-center text-muted-foreground">
-                No optimal team results yet. Update results after gameweeks complete.
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ChartCard title="Model score trend" icon={TrendingUp} empty={!trend.length}>
+          <AreaChart data={trend}>
+            <defs><linearGradient id="scoreFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.28} /><stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} /></linearGradient></defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="gameweek" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+            <YAxis domain={[0, 100]} stroke="hsl(var(--muted-foreground))" fontSize={11} />
+            <Tooltip contentStyle={tooltipStyle} />
+            <Area type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#scoreFill)" />
+          </AreaChart>
+        </ChartCard>
+        <ChartCard title="Optimized XI: projected vs actual" icon={Trophy} empty={!teamTrend.length}>
+          <BarChart data={teamTrend}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="gameweek" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+            <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
+            <Tooltip contentStyle={tooltipStyle} />
+            <Bar dataKey="predicted" name="Projected" fill="hsl(var(--primary))" radius={[5, 5, 0, 0]} />
+            <Bar dataKey="actual" name="Actual" fill="hsl(var(--accent))" radius={[5, 5, 0, 0]} />
+          </BarChart>
+        </ChartCard>
       </div>
 
-      {/* Gameweek History Table */}
-      {history && history.length > 0 && (
-        <Card className="glass border-border/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-primary" />
-              Gameweek Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Gameweek</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Predicted</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Actual</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Accuracy</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Correct</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Avg Error</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((h) => (
-                    <tr key={h.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                      <td className="py-3 px-4 font-medium">GW {h.gameweek_id}</td>
-                      <td className="text-right py-3 px-4">{h.total_predicted_points?.toFixed(0) || '-'}</td>
-                      <td className="text-right py-3 px-4">{h.total_actual_points?.toFixed(0) || '-'}</td>
-                      <td className="text-right py-3 px-4">
-                        <Badge 
-                          variant="outline" 
-                          className={
-                            (h.accuracy_percentage || 0) >= 80 ? 'border-fpl-green text-fpl-green' :
-                            (h.accuracy_percentage || 0) >= 60 ? 'border-fpl-gold text-fpl-gold' :
-                            'border-fpl-red text-fpl-red'
-                          }
-                        >
-                          {h.accuracy_percentage?.toFixed(1) || 0}%
-                        </Badge>
-                      </td>
-                      <td className="text-right py-3 px-4">
-                        {h.correct_predictions || 0}/{h.players_analyzed || 0}
-                      </td>
-                      <td className="text-right py-3 px-4 text-muted-foreground">
-                        ±{h.avg_prediction_error?.toFixed(1) || 0}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {history?.length ? (
+        <Card className="overflow-hidden border-border/60 shadow-sm">
+          <CardHeader><CardTitle>Gameweek scoring log</CardTitle></CardHeader>
+          <CardContent className="overflow-x-auto p-0">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-muted/40 text-xs text-muted-foreground"><tr><th className="px-5 py-3 text-left">Gameweek</th><th className="px-5 py-3 text-right">Score</th><th className="px-5 py-3 text-right">Within ±2</th><th className="px-5 py-3 text-right">MAE</th><th className="px-5 py-3 text-right">RMSE</th><th className="px-5 py-3 text-right">Bias</th></tr></thead>
+              <tbody>{history.map(row => <tr key={row.id} className="border-t border-border/50"><td className="px-5 py-3 font-semibold">{row.gameweek?.name || `GW ${row.gameweek_id}`}</td><td className="px-5 py-3 text-right"><Badge variant="outline">{Number(row.accuracy_percentage || 0).toFixed(1)}%</Badge></td><td className="px-5 py-3 text-right font-mono">{Number(row.within_two_percentage ?? (row.players_analyzed ? row.correct_predictions / row.players_analyzed * 100 : 0)).toFixed(1)}%</td><td className="px-5 py-3 text-right font-mono">{Number(row.avg_prediction_error || 0).toFixed(2)}</td><td className="px-5 py-3 text-right font-mono">{row.rmse == null ? '—' : Number(row.rmse).toFixed(2)}</td><td className="px-5 py-3 text-right font-mono">{row.calibration_bias == null ? '—' : `${row.calibration_bias > 0 ? '+' : ''}${Number(row.calibration_bias).toFixed(2)}`}</td></tr>)}</tbody>
+            </table>
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }
+
+function Metric({ icon: Icon, label, value, detail }: { icon: typeof Target; label: string; value: string; detail: string }) {
+  return <Card className="border-border/60 shadow-sm"><CardContent className="flex items-start justify-between p-4"><div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-display text-2xl font-bold">{value}</p><p className="mt-1 text-[11px] text-muted-foreground">{detail}</p></div><div className="rounded-xl bg-primary/10 p-2.5 text-primary"><Icon className="h-4 w-4" /></div></CardContent></Card>;
+}
+
+function ChartCard({ title, icon: Icon, empty, children }: { title: string; icon: typeof Trophy; empty: boolean; children: React.ReactElement }) {
+  return <Card className="border-border/60 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Icon className="h-4 w-4 text-primary" />{title}</CardTitle></CardHeader><CardContent>{empty ? <div className="flex h-[270px] items-center justify-center text-center text-sm text-muted-foreground">Score a completed gameweek to populate this chart.</div> : <ResponsiveContainer width="100%" height={270}>{children}</ResponsiveContainer>}</CardContent></Card>;
+}
+
+const tooltipStyle = { backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '10px' };

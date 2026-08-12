@@ -1,4 +1,6 @@
-# Prediction Generation Timeout Fixes
+# Legacy Prediction Generation Timeout Fixes
+
+> Historical note: this document describes the retired AI-batch prediction pipeline. FPL Edge v2.0 now uses the deterministic, fast `ensemble-v2.0` engine documented in `README.md`; AI calls are no longer used to generate numeric point projections.
 
 ## Problem Diagnosed
 The "Generate Predictions" button was hanging for 4+ days due to:

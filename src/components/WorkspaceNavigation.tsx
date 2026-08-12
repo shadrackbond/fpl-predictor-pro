@@ -1,0 +1,130 @@
+/* eslint-disable react-refresh/only-export-components */
+import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { LucideIcon } from 'lucide-react';
+import {
+  BarChart3,
+  CalendarDays,
+  CircleDollarSign,
+  Crown,
+  Flame,
+  Goal,
+  HeartPulse,
+  LayoutDashboard,
+  Newspaper,
+  ScanSearch,
+  ShieldCheck,
+  Sparkles,
+  Swords,
+  Trophy,
+} from 'lucide-react';
+
+export type WorkspaceView =
+  | 'myteam' | 'team' | 'captain'
+  | 'players' | 'differentials' | 'topplayers'
+  | 'fixtures' | 'fdr' | 'injuries' | 'prices'
+  | 'results' | 'accuracy' | 'news' | 'rivals';
+
+interface NavigationItem {
+  value: WorkspaceView;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+}
+
+const groups: Array<{ label: string; items: NavigationItem[] }> = [
+  {
+    label: 'Squad',
+    items: [
+      { value: 'myteam', label: 'My team', description: 'Manage your current squad', icon: LayoutDashboard },
+      { value: 'team', label: 'Optimized XI', description: 'Best valid £100m squad', icon: Trophy },
+      { value: 'captain', label: 'Captaincy', description: 'Risk-aware armband picks', icon: Crown },
+    ],
+  },
+  {
+    label: 'Analysis',
+    items: [
+      { value: 'players', label: 'Projections', description: 'Ranges, confidence and drivers', icon: Sparkles },
+      { value: 'differentials', label: 'Differentials', description: 'Low-owned upside', icon: Flame },
+      { value: 'topplayers', label: 'Position leaders', description: 'Compare the best by role', icon: ScanSearch },
+    ],
+  },
+  {
+    label: 'Planning',
+    items: [
+      { value: 'fixtures', label: 'Fixtures', description: 'Gameweek schedule', icon: CalendarDays },
+      { value: 'fdr', label: 'Fixture planner', description: 'Six-gameweek difficulty', icon: Goal },
+      { value: 'injuries', label: 'Availability', description: 'Injuries and doubts', icon: HeartPulse },
+      { value: 'prices', label: 'Price watch', description: 'Likely rises and falls', icon: CircleDollarSign },
+    ],
+  },
+  {
+    label: 'Performance',
+    items: [
+      { value: 'results', label: 'Results', description: 'Live and completed fixtures', icon: BarChart3 },
+      { value: 'accuracy', label: 'Model accuracy', description: 'MAE, trend and calibration', icon: ShieldCheck },
+      { value: 'news', label: 'News', description: 'Relevant squad updates', icon: Newspaper },
+      { value: 'rivals', label: 'Mini-league', description: 'Track rival decisions', icon: Swords },
+    ],
+  },
+];
+
+const items = groups.flatMap(group => group.items);
+
+export function WorkspaceNavigation({ active, onChange }: { active: WorkspaceView; onChange: (view: WorkspaceView) => void }) {
+  return (
+    <>
+      <div className="lg:hidden">
+        <Select value={active} onValueChange={value => onChange(value as WorkspaceView)}>
+          <SelectTrigger className="h-12 rounded-xl bg-card shadow-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {groups.map(group => (
+              <div key={group.label}>
+                <p className="px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{group.label}</p>
+                {group.items.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+              </div>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <aside className="hidden lg:block">
+        <nav aria-label="FPL workspace" className="sticky top-5 space-y-5 rounded-2xl border border-border/60 bg-card p-3 shadow-sm">
+          {groups.map(group => (
+            <div key={group.label}>
+              <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{group.label}</p>
+              <div className="space-y-1">
+                {group.items.map(item => {
+                  const Icon = item.icon;
+                  const isActive = item.value === active;
+                  return (
+                    <button
+                      type="button"
+                      key={item.value}
+                      onClick={() => onChange(item.value)}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={cn(
+                        'group flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors',
+                        isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-foreground hover:bg-muted',
+                      )}
+                    >
+                      <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground')} />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold leading-4">{item.label}</span>
+                        <span className={cn('mt-1 block truncate text-[11px]', isActive ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{item.description}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+      </aside>
+    </>
+  );
+}
+
+export function getWorkspaceItem(view: WorkspaceView) {
+  return items.find(item => item.value === view) || items[0];
+}

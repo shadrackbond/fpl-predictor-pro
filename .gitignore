@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+.model-test
+*.tsbuildinfo
+verify-preview
 
 # Editor directories and files
 .vscode/*
