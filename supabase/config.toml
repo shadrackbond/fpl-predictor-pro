@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.fetch-mini-league]
 verify_jwt = false
+
+[functions.simulate-transfers]
+verify_jwt = false

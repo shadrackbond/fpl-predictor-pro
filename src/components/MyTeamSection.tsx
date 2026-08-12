@@ -14,7 +14,6 @@ import { GameweekHistoryTable, type GameweekHistoryRow } from './GameweekHistory
 import { ShareTeamButton } from './ShareTeamButton';
 import { SmartTeamAnalyzer } from './SmartTeamAnalyzer';
 import { RiskProfileSelector, useRiskProfile } from './RiskProfileSelector';
-import { AIAssistant } from './AIAssistant';
 import {
   UserCircle,
   Download,
@@ -300,13 +299,6 @@ export function MyTeamSection({ gameweekId }: MyTeamSectionProps) {
           {teamComparison && (
             <TeamComparison comparison={teamComparison} />
           )}
-
-          {/* AI Assistant */}
-          <AIAssistant
-            teamData={userTeam}
-            gameweekId={gameweekId}
-            predictions={new Map(Object.entries(analysisData.player_predictions || {}).filter(([, v]) => typeof v === 'number' && isFinite(v as number)).map(([k, v]) => [parseInt(k), v as number]))}
-          />
 
           {/* Transfer Suggestions */}
           <TransferSuggestions

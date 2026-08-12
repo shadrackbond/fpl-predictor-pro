@@ -27,8 +27,17 @@ interface Message {
   timestamp: Date;
 }
 
+interface AssistantTeamData {
+  team_name?: string | null;
+  overall_rank?: number | null;
+  overall_points?: number | null;
+  free_transfers?: number | null;
+  bank?: number | null;
+  chips_available?: unknown;
+}
+
 interface AIAssistantProps {
-  teamData?: any;
+  teamData?: AssistantTeamData | null;
   gameweekId: number | null;
   predictions?: Map<number, number>;
   className?: string;
@@ -98,6 +107,7 @@ export function AIAssistant({
       });
 
       if (error) throw error;
+      if (data?.error && !data?.response) throw new Error(data.error);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -131,8 +141,10 @@ export function AIAssistant({
     return (
       <Button
         onClick={() => setIsOpen(true)}
+        aria-label="Open FPL AI Assistant"
+        title="Open FPL AI Assistant"
         className={cn(
-          "fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-lg z-50",
+          "fixed bottom-4 right-4 z-[70] h-14 w-14 rounded-full shadow-lg sm:bottom-6 sm:right-6",
           "gradient-primary hover:scale-105 transition-transform",
           className
         )}
@@ -144,10 +156,10 @@ export function AIAssistant({
 
   return (
     <Card className={cn(
-      "fixed z-50 shadow-2xl border-border transition-all duration-300",
+      "fixed z-[70] shadow-2xl border-border transition-all duration-300",
       isExpanded 
-        ? "inset-4 md:inset-8" 
-        : "bottom-6 right-6 w-[380px] h-[500px] max-h-[80vh]",
+        ? "inset-3 md:inset-8"
+        : "bottom-4 left-4 right-4 h-[520px] max-h-[calc(100vh-2rem)] sm:bottom-6 sm:left-auto sm:right-6 sm:w-[380px] sm:max-h-[80vh]",
       className
     )}>
       <CardHeader className="pb-3 border-b border-border/50">

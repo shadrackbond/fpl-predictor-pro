@@ -10,6 +10,7 @@ import { UserMenu } from '@/components/UserMenu';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { GameweekSelector } from '@/components/GameweekSelector';
 import { OnboardingTutorial } from '@/components/OnboardingTutorial';
+import { AIAssistant } from '@/components/AIAssistant';
 import { WorkspaceNavigation, getWorkspaceItem, type WorkspaceView } from '@/components/WorkspaceNavigation';
 import {
   useGameweeks,
@@ -21,6 +22,7 @@ import {
 } from '@/hooks/useFPLData';
 import { usePredictionStatus, formatTimeSince } from '@/hooks/usePredictionStatus';
 import { usePredictionHistory } from '@/hooks/usePredictionHistory';
+import { useUserTeam } from '@/hooks/useUserTeam';
 import {
   Activity,
   AlertCircle,
@@ -70,6 +72,7 @@ const Index = () => {
   const { data: fixtures } = useFixtures(selectedGameweekId);
   const { data: history } = usePredictionHistory();
   const { data: predictionStatus } = usePredictionStatus(selectedGameweekId);
+  const { data: userTeam } = useUserTeam();
   const fetchFPLData = useFetchFPLData();
   const generatePredictions = useGeneratePredictions();
 
@@ -92,6 +95,11 @@ const Index = () => {
   const lastScored = history?.[0];
   const latestSync = predictions?.find(prediction => prediction.player?.last_synced_at)?.player?.last_synced_at;
   const isBusy = generatePredictions.isPending || isProcessing;
+  const assistantPredictions = useMemo(() => new Map(
+    (predictions || [])
+      .filter(prediction => typeof prediction.player_id === 'number' && typeof prediction.predicted_points === 'number')
+      .map(prediction => [prediction.player_id as number, Number(prediction.predicted_points)]),
+  ), [predictions]);
 
   const deadlineLabel = useMemo(() => {
     if (!selectedGameweek?.deadline_time) return 'Deadline unavailable';
@@ -233,6 +241,12 @@ const Index = () => {
           <span>Official FPL data · Projections are probabilistic, not guarantees</span>
         </div>
       </footer>
+
+      <AIAssistant
+        teamData={userTeam || null}
+        gameweekId={selectedGameweekId}
+        predictions={assistantPredictions}
+      />
     </div>
   );
 };

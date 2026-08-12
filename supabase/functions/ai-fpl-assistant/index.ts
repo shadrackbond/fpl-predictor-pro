@@ -34,9 +34,20 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
 
-    if (!supabaseUrl || !supabaseServiceKey || !lovableApiKey) {
-      return new Response(JSON.stringify({ error: 'Server misconfiguration' }), {
-        status: 500,
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(JSON.stringify({
+        response: fallbackAssistantResponse(question, team_data, predictions, risk_profile),
+        degraded: true,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!lovableApiKey) {
+      return new Response(JSON.stringify({
+        response: fallbackAssistantResponse(question, team_data, predictions, risk_profile),
+        degraded: true,
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -303,3 +314,49 @@ BEHAVIOR RULES
     });
   }
 });
+
+function fallbackAssistantResponse(
+  question: string,
+  teamData: unknown,
+  predictions: Record<string, number>,
+  riskProfile: string,
+): string {
+  const lowerQuestion = question.toLowerCase();
+  const team = teamData && typeof teamData === 'object'
+    ? teamData as { team_name?: string; free_transfers?: number; bank?: number }
+    : null;
+  const predictionValues = Object.values(predictions)
+    .map(value => Number(value))
+    .filter(value => Number.isFinite(value));
+  const averagePrediction = predictionValues.length
+    ? predictionValues.reduce((sum, value) => sum + value, 0) / predictionValues.length
+    : 0;
+
+  let directAnswer = 'I can help with general FPL strategy, but detailed player-specific advice needs the live assistant provider to be configured.';
+  if (lowerQuestion.includes('captain')) {
+    directAnswer = 'Captain the player in your starting XI with the best mix of predicted points, secure minutes, and low downside. Avoid high-rotation or injury-flagged players even if their ceiling is strong.';
+  } else if (lowerQuestion.includes('wildcard')) {
+    directAnswer = 'Wildcard only if your squad needs several structural fixes. If you are happy with most starters and only need one or two changes, preserve the chip.';
+  } else if (lowerQuestion.includes('transfer') || lowerQuestion.includes('hit')) {
+    directAnswer = 'Prioritize transfers that improve expected points over multiple gameweeks, not just the next fixture. A hit usually needs a clear projected gain plus better medium-term fixtures.';
+  } else if (lowerQuestion.includes('bench')) {
+    directAnswer = 'Bench the lowest expected-minutes player first, then compare fixture difficulty and attacking or clean-sheet upside.';
+  }
+
+  const teamContext = team
+    ? `Your saved team context is available: ${team.team_name || 'unnamed team'}, ${team.free_transfers || 1} free transfer(s), and £${Number(team.bank || 0).toFixed(1)}m in the bank.`
+    : 'No imported team context is available yet, so import your FPL team for personalized advice.';
+
+  const projectionContext = predictionValues.length
+    ? `I received ${predictionValues.length} projection value(s); their average is ${averagePrediction.toFixed(1)} points.`
+    : 'No projection values were provided with this chat request.';
+
+  return `**Answer:** ${directAnswer}
+
+**Analysis:**
+- ${teamContext}
+- ${projectionContext}
+- Risk profile: ${riskProfile || 'balanced'}.
+
+**Strategy Tip:** Refresh projections before making deadline decisions, then compare captaincy, transfer, and bench calls against expected minutes and fixture difficulty.`;
+}
