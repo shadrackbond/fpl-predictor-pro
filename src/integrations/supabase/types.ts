@@ -264,6 +264,7 @@ export type Database = {
           formation: string
           gameweek_id: number | null
           id: number
+          model_version: string | null
           player_ids: number[]
           starting_xi: number[]
           team_rating: number
@@ -280,6 +281,7 @@ export type Database = {
           formation: string
           gameweek_id?: number | null
           id?: number
+          model_version?: string | null
           player_ids: number[]
           starting_xi: number[]
           team_rating: number
@@ -296,6 +298,7 @@ export type Database = {
           formation?: string
           gameweek_id?: number | null
           id?: number
+          model_version?: string | null
           player_ids?: number[]
           starting_xi?: number[]
           team_rating?: number
@@ -371,38 +374,65 @@ export type Database = {
         Row: {
           actual_points: number | null
           ai_analysis: string | null
+          confidence: number | null
           created_at: string
+          expected_minutes: number | null
+          fixture_count: number | null
           fixture_difficulty: number | null
           form_factor: number | null
           gameweek_id: number | null
           id: number
+          model_version: string | null
           player_id: number | null
+          predicted_ceiling: number | null
+          predicted_floor: number | null
           predicted_points: number
           prediction_accuracy: number | null
+          prediction_factors: Json | null
+          risk_level: string | null
+          updated_at: string | null
         }
         Insert: {
           actual_points?: number | null
           ai_analysis?: string | null
+          confidence?: number | null
           created_at?: string
+          expected_minutes?: number | null
+          fixture_count?: number | null
           fixture_difficulty?: number | null
           form_factor?: number | null
           gameweek_id?: number | null
           id?: number
+          model_version?: string | null
           player_id?: number | null
+          predicted_ceiling?: number | null
+          predicted_floor?: number | null
           predicted_points: number
           prediction_accuracy?: number | null
+          prediction_factors?: Json | null
+          risk_level?: string | null
+          updated_at?: string | null
         }
         Update: {
           actual_points?: number | null
           ai_analysis?: string | null
+          confidence?: number | null
           created_at?: string
+          expected_minutes?: number | null
+          fixture_count?: number | null
           fixture_difficulty?: number | null
           form_factor?: number | null
           gameweek_id?: number | null
           id?: number
+          model_version?: string | null
           player_id?: number | null
+          predicted_ceiling?: number | null
+          predicted_floor?: number | null
           predicted_points?: number
           prediction_accuracy?: number | null
+          prediction_factors?: Json | null
+          risk_level?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -425,14 +455,20 @@ export type Database = {
         Row: {
           assists: number | null
           bonus: number | null
+          bps: number | null
+          chance_of_playing_next_round: number | null
           clean_sheets: number | null
           corners_order: number | null
           created_at: string
           creativity: number | null
           direct_freekicks_order: number | null
+          ep_next: number | null
           expected_assists: number | null
+          expected_assists_per_90: number | null
           expected_goal_involvement: number | null
+          expected_goal_involvements_per_90: number | null
           expected_goals: number | null
+          expected_goals_per_90: number | null
           first_name: string
           form: number | null
           fpl_id: number
@@ -442,33 +478,51 @@ export type Database = {
           id: number
           influence: number | null
           key_passes: number | null
+          last_synced_at: string | null
           minutes: number | null
+          news: string | null
+          news_added: string | null
           penalties_order: number | null
+          penalties_saved: number | null
           photo: string | null
+          points_per_game: number | null
           position: string
           price: number
+          saves: number | null
           second_name: string
           selected_by_percent: number | null
           shots: number | null
           shots_in_box: number | null
+          starts: number | null
+          starts_per_90: number | null
           status: string | null
           team_id: number | null
           threat: number | null
           total_points: number | null
+          transfers_in_event: number | null
+          transfers_out_event: number | null
           updated_at: string
+          value_form: number | null
+          value_season: number | null
           web_name: string
         }
         Insert: {
           assists?: number | null
           bonus?: number | null
+          bps?: number | null
+          chance_of_playing_next_round?: number | null
           clean_sheets?: number | null
           corners_order?: number | null
           created_at?: string
           creativity?: number | null
           direct_freekicks_order?: number | null
+          ep_next?: number | null
           expected_assists?: number | null
+          expected_assists_per_90?: number | null
           expected_goal_involvement?: number | null
+          expected_goal_involvements_per_90?: number | null
           expected_goals?: number | null
+          expected_goals_per_90?: number | null
           first_name: string
           form?: number | null
           fpl_id: number
@@ -478,33 +532,51 @@ export type Database = {
           id?: number
           influence?: number | null
           key_passes?: number | null
+          last_synced_at?: string | null
           minutes?: number | null
+          news?: string | null
+          news_added?: string | null
           penalties_order?: number | null
+          penalties_saved?: number | null
           photo?: string | null
+          points_per_game?: number | null
           position: string
           price: number
+          saves?: number | null
           second_name: string
           selected_by_percent?: number | null
           shots?: number | null
           shots_in_box?: number | null
+          starts?: number | null
+          starts_per_90?: number | null
           status?: string | null
           team_id?: number | null
           threat?: number | null
           total_points?: number | null
+          transfers_in_event?: number | null
+          transfers_out_event?: number | null
           updated_at?: string
+          value_form?: number | null
+          value_season?: number | null
           web_name: string
         }
         Update: {
           assists?: number | null
           bonus?: number | null
+          bps?: number | null
+          chance_of_playing_next_round?: number | null
           clean_sheets?: number | null
           corners_order?: number | null
           created_at?: string
           creativity?: number | null
           direct_freekicks_order?: number | null
+          ep_next?: number | null
           expected_assists?: number | null
+          expected_assists_per_90?: number | null
           expected_goal_involvement?: number | null
+          expected_goal_involvements_per_90?: number | null
           expected_goals?: number | null
+          expected_goals_per_90?: number | null
           first_name?: string
           form?: number | null
           fpl_id?: number
@@ -514,20 +586,32 @@ export type Database = {
           id?: number
           influence?: number | null
           key_passes?: number | null
+          last_synced_at?: string | null
           minutes?: number | null
+          news?: string | null
+          news_added?: string | null
           penalties_order?: number | null
+          penalties_saved?: number | null
           photo?: string | null
+          points_per_game?: number | null
           position?: string
           price?: number
+          saves?: number | null
           second_name?: string
           selected_by_percent?: number | null
           shots?: number | null
           shots_in_box?: number | null
+          starts?: number | null
+          starts_per_90?: number | null
           status?: string | null
           team_id?: number | null
           threat?: number | null
           total_points?: number | null
+          transfers_in_event?: number | null
+          transfers_out_event?: number | null
           updated_at?: string
+          value_form?: number | null
+          value_season?: number | null
           web_name?: string
         }
         Relationships: [
@@ -595,6 +679,7 @@ export type Database = {
           gameweek_id: number
           id: string
           last_player_index: number | null
+          model_version: string | null
           started_at: string | null
           status: string | null
           total_players: number | null
@@ -608,6 +693,7 @@ export type Database = {
           gameweek_id: number
           id?: string
           last_player_index?: number | null
+          model_version?: string | null
           started_at?: string | null
           status?: string | null
           total_players?: number | null
@@ -621,6 +707,7 @@ export type Database = {
           gameweek_id?: number
           id?: string
           last_player_index?: number | null
+          model_version?: string | null
           started_at?: string | null
           status?: string | null
           total_players?: number | null
