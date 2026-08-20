@@ -15,7 +15,9 @@ dist-ssr
 *.tsbuildinfo
 verify-preview
 .env
-.env.example
+.env.*
+*.env
+!.env.example
 
 # Editor directories and files
 .vscode/*
