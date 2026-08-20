@@ -18,6 +18,7 @@ verify-preview
 .env.*
 *.env
 !.env.example
+.gitignore
 
 # Editor directories and files
 .vscode/*
