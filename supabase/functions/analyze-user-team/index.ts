@@ -168,7 +168,16 @@ serve(async (req) => {
     }
 
     if (!picksData?.picks?.length) {
-      throw new Error('Could not find any team picks. Please make sure you have set up your team on the FPL website.');
+      const seasonHasStarted = typeof entryData.current_event === 'number' && entryData.current_event > 0;
+      const message = seasonHasStarted
+        ? 'No public squad was found for this team. Please confirm the team has been saved on the FPL website and try again after the gameweek deadline.'
+        : 'Your FPL Team ID is valid, but FPL has not made its squad picks public yet. Team imports become available after the first gameweek deadline.';
+
+      console.warn(`Team ${fpl_team_id} has no publicly available picks: ${message}`);
+      return new Response(JSON.stringify({ error: message, code: 'PICKS_NOT_PUBLIC' }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     console.log(`Using team picks from GW ${actualPicksGw}, analyzing for GW ${fplGwId}`);
